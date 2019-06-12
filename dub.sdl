@@ -1,0 +1,5 @@
+name        "renpy-update-tl"
+description "Update Ren'Py translation files after modifying the source."
+authors     "Nickolay Bukreyev"
+copyright   "Copyright © 2019, Nickolay Bukreyev"
+license     "MIT"
