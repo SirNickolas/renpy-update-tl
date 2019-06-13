@@ -1,3 +1,5 @@
+module program_options;
+
 import sumtype;
 
 private @safe:
@@ -27,7 +29,7 @@ auto _parseOptions(ref ProgramOptions o, ref string[ ] args) @system {
 bool _isValidLang(const(char)[ ] lang) nothrow pure @nogc {
     import utils;
 
-    return isCIdent(lang) && lang != "None";
+    return isValidCIdent(lang) && lang != "None";
 }
 
 void _validate(ref const ProgramOptions o) pure {
