@@ -1,21 +1,21 @@
 import sumtype;
 
-@system:
+private @safe:
 
-private enum _usage = q"EOF
+enum _usage = q"EOF
 A tool for updating Ren'Py translations.
 
 Usage:
   renpy-update-tl [...] <project-path> <language>
 EOF";
 
-struct ProgramOptions {
+public struct ProgramOptions {
     string projectPath;
     string language;
     string renpyPath;
 }
 
-private auto _parseOptions(ref ProgramOptions o, ref string[ ] args) {
+auto _parseOptions(ref ProgramOptions o, ref string[ ] args) @system {
     import std.getopt;
 
     return getopt(args,
@@ -24,12 +24,29 @@ private auto _parseOptions(ref ProgramOptions o, ref string[ ] args) {
     );
 }
 
-struct ParseError { }
-struct HelpRequested { }
+bool _isValidLang(const(char)[ ] lang) nothrow pure @nogc {
+    import utils;
 
-alias ParseResult = SumType!(ProgramOptions, ParseError, HelpRequested);
+    return isCIdent(lang) && lang != "None";
+}
 
-ParseResult parse(ref string[ ] args) {
+void _validate(ref const ProgramOptions o) pure {
+    import std.exception;
+    import std.path;
+    import std.range;
+
+    enforce(_isValidLang(o.language), "Invalid language: `" ~ o.language ~ '`');
+    enforce(isValidPath(o.projectPath), "Invalid project path: `" ~ o.projectPath ~ '`');
+    if (!o.renpyPath.empty)
+        enforce(isValidPath(o.renpyPath), "Invalid Ren'Py SDK path: `" ~ o.renpyPath ~ '`');
+}
+
+public struct ParseError { }
+public struct HelpRequested { }
+
+public alias ParseResult = SumType!(ProgramOptions, ParseError, HelpRequested);
+
+public ParseResult parse(ref string[ ] args) @system {
     import std.getopt;
     import std.stdio;
 
@@ -44,11 +61,12 @@ ParseResult parse(ref string[ ] args) {
             defaultGetoptFormatter(stderr.lockingTextWriter(), _usage, info.options);
             return ParseResult(ParseError());
         }
+        o.projectPath = args[1];
+        o.language = args[2];
+        _validate(o);
     } catch (Exception e) {
         stderr.writeln(e.msg);
         return ParseResult(ParseError());
     }
-    o.projectPath = args[1];
-    o.language = args[2];
     return ParseResult(o);
 }
