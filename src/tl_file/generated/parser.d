@@ -1,9 +1,10 @@
 module tl_file.generated.parser;
 
 import std.algorithm;
-import std.ascii: isDigit, isHexDigit, isWhite;
+import std.ascii: isDigit, isWhite;
 import std.utf: byChar;
 
+import tl_file.common_parser;
 import tl_file.generated.model;
 import utils: isCIdent;
 
@@ -37,27 +38,6 @@ const(char)[ ] _extractBlockID(const(char)[ ] line) @nogc {
     return t.startsWith(':') ? id : null;
 }
 
-bool _isDialogueID(const(char)[ ] id) @nogc {
-    // ^[A-Za-z0-9_]+_[A-Fa-f0-9]{8,16}$
-    auto s = id.byChar();
-    auto t = s.stripRight!isHexDigit();
-    if (s.length - t.length < 8 || s.length - t.length > 16)
-        return false;
-    return t.length > 1 && t.endsWith('_') && t.all!isCIdent();
-}
-
-const(char)[ ] _extractDialogueOldText(const(char)[ ] line) @nogc {
-    // ^#\s*(\w*\s*".*?)\s*$
-    auto s = line.byChar();
-    if (!s.skipOver('#'))
-        return null;
-    s.skipOver!isWhite();
-    auto t = s.stripLeft!isCIdent().stripLeft!isWhite();
-    if (!t.startsWith('"'))
-        return null;
-    return s.stripRight!isWhite().source;
-}
-
 const(char)[ ] _extractDialogueNewText(const(char)[ ] line) @nogc {
     // ^(\w*\s*".*?)\s*$
     auto s = line.byChar();
@@ -66,20 +46,9 @@ const(char)[ ] _extractDialogueNewText(const(char)[ ] line) @nogc {
     return s.stripRight!isWhite().source;
 }
 
-const(char)[ ] _extractPlainStringOldText(const(char)[ ] line) @nogc {
-    // ^old\s*(".*?)\s*$
-    auto s = line.byChar();
-    if (!s.skipOver("old".byChar()))
-        return null;
-    s.skipOver!isWhite();
-    if (!s.startsWith('"'))
-        return null;
-    return s.stripRight!isWhite().source;
-}
-
 public Declarations parse(const(char)[ ] source) {
-    import std.array;
-    import std.range;
+    import std.array: appender;
+    import std.range: empty;
     import std.string: lineSplitter;
     import string_interner;
 
@@ -98,10 +67,10 @@ public Declarations parse(const(char)[ ] source) {
             location = s;
         else if (const s = _extractBlockID(line)) {
             parsingPlainStrings = s == "strings";
-            if (!parsingPlainStrings && _isDialogueID(s))
+            if (!parsingPlainStrings && isDialogueID(s))
                 labelAndHash = s.idup;
         } else if (!parsingPlainStrings) {
-            if (const s = _extractDialogueOldText(line))
+            if (const s = extractDialogueOldText(line))
                 oldText = s;
             else if (!labelAndHash.empty && !oldText.empty)
                 if (const newText = _extractDialogueNewText(line)) {
@@ -110,7 +79,7 @@ public Declarations parse(const(char)[ ] source) {
                     );
                     location = oldText = null;
                 }
-        } else if (const s = _extractPlainStringOldText(line)) {
+        } else if (const s = extractPlainStringOldText(line)) {
             plainStrings ~= PlainString(location.idup, s.idup);
             location = oldText = null;
         }
