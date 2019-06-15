@@ -6,6 +6,7 @@ import std.range: empty;
 import std.utf: byCodeUnit;
 
 import tl_file.common_parser;
+import tl_file.user.builder;
 import tl_file.user.model;
 
 import utils: isCIdent;
@@ -132,7 +133,8 @@ nothrow pure @nogc:
 
     void reset(string s) @trusted
     in {
-        assert(s.ptr >= _data.ptr && s.ptr + s.length <= _data.ptr + _data.length);
+        version (assert)
+            assert(s.ptr >= _data.ptr && s.ptr + s.length <= _data.ptr + _data.length);
     }
     do {
         _cur = s;
@@ -142,7 +144,8 @@ nothrow pure @nogc:
 
     void expandTo(string s) @trusted
     in {
-        assert(s.ptr >= _data.ptr && s.ptr + s.length <= _data.ptr + _data.length);
+        version (assert)
+            assert(s.ptr >= _data.ptr && s.ptr + s.length <= _data.ptr + _data.length);
     }
     do {
         if (_cur.empty)
@@ -236,7 +239,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                 if (!acc0.get.byCodeUnit().all!isWhite()) {
                     assert(!lastBlock.get.empty);
                     lastBlock.expandTo(acc0.get);
-                    blocks ~= Block(UnrecognizedBlock(lastBlock.get));
+                    blocks ~= makeUnrecognizedBlock(lastBlock.get);
                 }
                 acc0.reset();
                 lastBlock.reset(line);
@@ -261,7 +264,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                         state = _State.plainString0;
                         break;
                     }
-                blocks ~= Block(DialogueBlock(summary.get, acc0.get, oldText, acc1.get));
+                blocks ~= makeDialogueBlock(summary.get, acc0.get, oldText, acc1.get);
                 summary.reset();
                 if (state == _State.unrecognizedBlock)
                     acc0.reset(line);
@@ -298,7 +301,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                         break;
                     }
                 if (!acc0.get.byCodeUnit().all!isWhite())
-                    blocks ~= Block(UnrecognizedBlock(acc0.get));
+                    blocks ~= makeUnrecognizedBlock(acc0.get);
                 acc0.reset();
                 lastPlainString.reset(line);
                 break;
@@ -325,7 +328,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                     break;
                 }
                 if (!acc0.get.byCodeUnit().all!isWhite())
-                    blocks ~= Block(UnrecognizedBlock(acc0.get));
+                    blocks ~= makeUnrecognizedBlock(acc0.get);
                 acc0.reset();
                 break;
             }
@@ -351,7 +354,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                         state = _State.plainString0;
                         break;
                     }
-                plainStrings ~= PlainString(acc0.get, oldText, acc1.get);
+                plainStrings ~= makePlainString(acc0.get, oldText, acc1.get);
                 acc0.reset();
                 acc1.reset();
                 if (state == _State.plainString2)
@@ -381,7 +384,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                         state = _State.plainString0;
                         break;
                     }
-                blocks ~= Block(UnrecognizedBlock(acc0.get));
+                blocks ~= makeUnrecognizedBlock(acc0.get);
                 acc0.reset();
                 break;
             }
@@ -394,25 +397,25 @@ public Declarations parse(string source, const(char)[ ] lang) {
     case afterLocation:
     case dialogueBlock0:
     case plainString0:
-        blocks ~= Block(UnrecognizedBlock(lastBlock.get));
+        blocks ~= makeUnrecognizedBlock(lastBlock.get);
         break;
 
     case dialogueBlock1:
-        blocks ~= Block(DialogueBlock(summary.get, acc0.get, oldText, acc1.get));
+        blocks ~= makeDialogueBlock(summary.get, acc0.get, oldText, acc1.get);
         break;
 
     case plainString1:
-        blocks ~= Block(UnrecognizedBlock(lastPlainString.get));
+        blocks ~= makeUnrecognizedBlock(lastPlainString.get);
         break;
 
     case plainString2:
-        plainStrings ~= PlainString(acc0.get, oldText, acc1.get);
+        plainStrings ~= makePlainString(acc0.get, oldText, acc1.get);
         break;
 
     case unrecognizedBlock:
-        blocks ~= Block(UnrecognizedBlock(acc0.get));
+        blocks ~= makeUnrecognizedBlock(acc0.get);
         break;
     }
 
-    return Declarations(fileSummary.get, blocks.data, plainStrings.data);
+    return Declarations(fileSummary.get.stripBlankLines, blocks.data, plainStrings.data);
 }

@@ -8,7 +8,7 @@ import utils: isCIdent;
 
 private nothrow pure @safe @nogc:
 
-private bool _isDialogueID(const(char)[ ] id) {
+bool _isDialogueID(const(char)[ ] id) {
     import std.ascii: isHexDigit;
 
     // ^[A-Za-z0-9_]+_[A-Fa-f0-9]{8,16}$
