@@ -1,7 +1,7 @@
 module tl_file.user.parser;
 
 import std.algorithm;
-import std.ascii: isDigit, isWhite;
+import std.ascii: isWhite;
 import std.range: empty;
 import std.utf: byCodeUnit;
 
@@ -28,6 +28,8 @@ string _stripLeft(string s) @nogc {
 }
 
 bool _isLocation(const(char)[ ] line) @nogc {
+    import std.ascii: isDigit;
+
     // ^#[^\0-\x1F?*<>|:]*\.rpym?:\d+\s*$
     auto s = line.byCodeUnit();
     if (!s.skipOver('#'))
@@ -50,6 +52,22 @@ bool _isBlankLine(const(char)[ ] line) @nogc {
     // ^\s*(?:#|$)
     const s = line.byCodeUnit().stripLeft!isWhite();
     return s.empty || s[0] == '#';
+}
+
+bool _isSomeBlockHeader(const(char)[ ] line) @nogc {
+    import std.ascii: isAlpha;
+
+    // ^[A-Za-z].*:\s*(?:#|$)
+    auto s = line.byCodeUnit();
+    if (!s.skipOver!isAlpha())
+        return false;
+    while (s.findSkip!q{a != ':'}) {
+        s.popFront();
+        s.skipOver!isWhite();
+        if (s.empty || s[0] == '#')
+            return true;
+    }
+    return false;
 }
 
 struct _BlockHeaderData {
@@ -80,20 +98,23 @@ _BlockHeaderData _parseBlockHeader(string line) @nogc {
 }
 
 enum _BlockHeader: ubyte {
+    unrecognized,
     none,
     dialogue,
     strings,
 }
 
 _BlockHeader _parseBlockHeader(string line, const(char)[ ] lang) @nogc {
-    if (const h = _parseBlockHeader(line))
+    if (const h = _parseBlockHeader(line)) {
         if (h.lang == lang) {
             if (isDialogueID(h.id))
                 return _BlockHeader.dialogue;
             else if (h.id == "strings")
                 return _BlockHeader.strings;
         }
-    return _BlockHeader.none;
+        return _BlockHeader.unrecognized;
+    }
+    return _isSomeBlockHeader(line) ? _BlockHeader.unrecognized : _BlockHeader.none;
 }
 
 struct _Expander {
@@ -108,6 +129,14 @@ nothrow pure @nogc:
     }
 
     void reset() { _cur = null; }
+
+    void reset(string s) @trusted
+    in {
+        assert(s.ptr >= _data.ptr && s.ptr + s.length <= _data.ptr + _data.length);
+    }
+    do {
+        _cur = s;
+    }
 
     @property string get() const { return _cur; }
 
@@ -137,26 +166,34 @@ public Declarations parse(string source, const(char)[ ] lang) {
     auto summary = _Expander(source);
     auto acc0 = _Expander(source);
     auto acc1 = _Expander(source);
+    auto lastBlock = _Expander(source);
+    auto lastPlainString = _Expander(source);
     string oldText;
     foreach (line; source.lineSplitter())
         theSwitch: final switch (state) {
             case _State.fileSummary: {
-                if (_isLocation(line)) {
+                if (_isLocation(line))
                     state = _State.afterLocation;
-                    break;
-                } else
+                else
                     final switch (_parseBlockHeader(line, lang)) with (_BlockHeader) {
-                        case none: break;
-                        case dialogue: state = _State.dialogueBlock0; break theSwitch;
-                        case strings:  state = _State.plainString0;   break theSwitch;
+                    case unrecognized:
+                    case none:
+                        fileSummary.expandTo(line);
+                        break theSwitch;
+                    case dialogue:
+                        state = _State.dialogueBlock0;
+                        break;
+                    case strings:
+                        state = _State.plainString0;
+                        break;
                     }
-                fileSummary.expandTo(line);
+                lastBlock.reset(line);
                 break;
             }
 
             case _State.afterLocation: {
                 final switch (_parseBlockHeader(line, lang)) with (_BlockHeader) {
-                case none: break;
+                case unrecognized: case none: break;
                 case dialogue:
                     state = _State.dialogueBlock0;
                     break theSwitch;
@@ -180,9 +217,29 @@ public Declarations parse(string source, const(char)[ ] lang) {
                     oldText = old;
                     state = _State.dialogueBlock1;
                     break;
+                } else if (_isLocation(line))
+                    state = _State.afterLocation;
+                else
+                    final switch (_parseBlockHeader(line, lang)) with (_BlockHeader) {
+                    case unrecognized:
+                        state = _State.unrecognizedBlock;
+                        goto case;
+                    case none:
+                        acc0.expandTo(line);
+                        break theSwitch;
+                    case dialogue:
+                        break;
+                    case strings:
+                        state = _State.plainString0;
+                        break;
+                    }
+                if (!acc0.get.byCodeUnit().all!isWhite()) {
+                    assert(!lastBlock.get.empty);
+                    lastBlock.expandTo(acc0.get);
+                    blocks ~= Block(UnrecognizedBlock(lastBlock.get));
                 }
-                // TODO: Unrecognized data handling.
-                acc0.expandTo(line);
+                acc0.reset();
+                lastBlock.reset(line);
                 break;
             }
 
@@ -191,8 +248,10 @@ public Declarations parse(string source, const(char)[ ] lang) {
                     state = _State.afterLocation;
                 else
                     final switch (_parseBlockHeader(line, lang)) with (_BlockHeader) {
+                    case unrecognized:
+                        state = _State.unrecognizedBlock;
+                        break;
                     case none:
-                        // TODO: Unrecognized data handling.
                         acc1.expandTo(line);
                         break theSwitch;
                     case dialogue:
@@ -204,7 +263,12 @@ public Declarations parse(string source, const(char)[ ] lang) {
                     }
                 blocks ~= Block(DialogueBlock(summary.get, acc0.get, oldText, acc1.get));
                 summary.reset();
-                acc0.reset();
+                if (state == _State.unrecognizedBlock)
+                    acc0.reset(line);
+                else {
+                    acc0.reset();
+                    lastBlock.reset(line);
+                }
                 acc1.reset();
                 oldText = null;
                 break;
@@ -217,14 +281,26 @@ public Declarations parse(string source, const(char)[ ] lang) {
                 else if (const old = extractPlainStringOldText(s)) {
                     oldText = old;
                     state = _State.plainString2;
-                } else {
-                    acc0.expandTo(line);
-                    break;
-                }
-                if (!acc0.get.byCodeUnit().all!isWhite()) {
+                } else
+                    final switch (_parseBlockHeader(line, lang)) with (_BlockHeader) {
+                    case unrecognized:
+                        state = _State.unrecognizedBlock;
+                        assert(!lastBlock.get.empty);
+                        acc0 = lastBlock;
+                        goto case;
+                    case none:
+                        acc0.expandTo(line);
+                        break theSwitch;
+                    case dialogue:
+                        state = _State.dialogueBlock0;
+                        break;
+                    case strings:
+                        break;
+                    }
+                if (!acc0.get.byCodeUnit().all!isWhite())
                     blocks ~= Block(UnrecognizedBlock(acc0.get));
-                    acc0.reset();
-                }
+                acc0.reset();
+                lastPlainString.reset(line);
                 break;
             }
 
@@ -234,31 +310,109 @@ public Declarations parse(string source, const(char)[ ] lang) {
                     state = _State.plainString2;
                     break;
                 }
-                acc0.expandTo(line);
+                final switch (_parseBlockHeader(line, lang)) with (_BlockHeader) {
+                case unrecognized:
+                    state = _State.unrecognizedBlock;
+                    goto case;
+                case none:
+                    acc0.expandTo(line);
+                    break theSwitch;
+                case dialogue:
+                    state = _State.dialogueBlock0;
+                    break;
+                case strings:
+                    state = _State.plainString0;
+                    break;
+                }
+                if (!acc0.get.byCodeUnit().all!isWhite())
+                    blocks ~= Block(UnrecognizedBlock(acc0.get));
+                acc0.reset();
                 break;
             }
 
             case _State.plainString2: {
-                const s = line._stripLeft();
-                if (_isLocation(s))
-                    state = _State.plainString1;
-                else if (const old = extractPlainStringOldText(s))
-                    oldText = old;
-                else {
-                    acc1.expandTo(line);
-                    break;
-                }
+                auto s = line._stripLeft();
+                if (_isLocation(s)) {
+                    state = line.length != s.length ? _State.plainString1 : _State.afterLocation;
+                } else if (const old = extractPlainStringOldText(s))
+                    s = old;
+                else
+                    final switch (_parseBlockHeader(line, lang)) with (_BlockHeader) {
+                    case unrecognized:
+                        state = _State.unrecognizedBlock;
+                        break;
+                    case none:
+                        acc1.expandTo(line);
+                        break theSwitch;
+                    case dialogue:
+                        state = _State.dialogueBlock0;
+                        break;
+                    case strings:
+                        state = _State.plainString0;
+                        break;
+                    }
                 plainStrings ~= PlainString(acc0.get, oldText, acc1.get);
                 acc0.reset();
                 acc1.reset();
-                oldText = null;
+                if (state == _State.plainString2)
+                    oldText = s;
+                else {
+                    oldText = null;
+                    if (state == _State.unrecognizedBlock)
+                        acc0.expandTo(line);
+                }
+                lastPlainString.reset(line);
                 break;
             }
 
             case _State.unrecognizedBlock: {
-                assert(false, "Unrecognized syntax in the translation file");
+                if (_isLocation(line))
+                    state = _State.afterLocation;
+                else
+                    final switch (_parseBlockHeader(line, lang)) with (_BlockHeader) {
+                    case unrecognized:
+                    case none:
+                        acc0.expandTo(line);
+                        break theSwitch;
+                    case dialogue:
+                        state = _State.dialogueBlock0;
+                        break;
+                    case strings:
+                        state = _State.plainString0;
+                        break;
+                    }
+                blocks ~= Block(UnrecognizedBlock(acc0.get));
+                acc0.reset();
+                break;
             }
         }
+
+    final switch (state) with (_State) {
+    case fileSummary:
+        break;
+
+    case afterLocation:
+    case dialogueBlock0:
+    case plainString0:
+        blocks ~= Block(UnrecognizedBlock(lastBlock.get));
+        break;
+
+    case dialogueBlock1:
+        blocks ~= Block(DialogueBlock(summary.get, acc0.get, oldText, acc1.get));
+        break;
+
+    case plainString1:
+        blocks ~= Block(UnrecognizedBlock(lastPlainString.get));
+        break;
+
+    case plainString2:
+        plainStrings ~= PlainString(acc0.get, oldText, acc1.get);
+        break;
+
+    case unrecognizedBlock:
+        blocks ~= Block(UnrecognizedBlock(acc0.get));
+        break;
+    }
 
     return Declarations(fileSummary.get, blocks.data, plainStrings.data);
 }

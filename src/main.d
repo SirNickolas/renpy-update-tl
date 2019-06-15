@@ -14,6 +14,7 @@ int _run(const po.ProgramOptions options) {
         chainPath(options.projectPath, "game/tl", options.language, "script.rpy")
     );
     auto decls = tlu.parse(source, options.language);
+    writeln(decls.blocks.length, ' ', decls.plainStrings.length);
     return 0;
 }
 
