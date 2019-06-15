@@ -3,9 +3,17 @@ import po = program_options;
 private @system:
 
 int _run(const po.ProgramOptions options) {
+    import std.algorithm.searching: canFind;
+    import stdf = std.file;
+    import std.path: chainPath;
     import std.stdio;
 
-    writeln(options);
+    import tlu = tl_file.user;
+
+    const source = stdf.readText(
+        chainPath(options.projectPath, "game/tl", options.language, "script.rpy")
+    );
+    auto decls = tlu.parse(source, options.language);
     return 0;
 }
 

@@ -24,6 +24,6 @@ bool isValidCIdent(const(char)[ ] name) nothrow pure @nogc {
     import std.ascii;
     import std.utf;
 
-    auto s = name.byChar();
+    auto s = name.byCodeUnit();
     return s.skipOver1!(c => isAlpha(c) || c == '_') && s.all!isCIdent();
 }

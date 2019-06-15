@@ -1,25 +1,37 @@
 module tl_file.common_parser;
 
 import std.algorithm;
-import std.ascii: isHexDigit, isWhite;
-import std.utf: byChar;
+import std.ascii: isWhite;
+import std.utf: byCodeUnit;
 
 import utils: isCIdent;
 
 private nothrow pure @safe @nogc:
 
-package bool isDialogueID(const(char)[ ] id) {
+private bool _isDialogueID(const(char)[ ] id) {
+    import std.ascii: isHexDigit;
+
     // ^[A-Za-z0-9_]+_[A-Fa-f0-9]{8,16}$
-    auto s = id.byChar();
+    auto s = id.byCodeUnit();
     auto t = s.stripRight!isHexDigit();
     if (s.length - t.length < 8 || s.length - t.length > 16)
         return false;
     return t.length > 1 && t.endsWith('_') && t[0 .. $ - 1].all!isCIdent();
 }
 
+package bool isDialogueID(const(char)[ ] id) {
+    import std.ascii: isDigit;
+
+    // ^[A-Za-z0-9_]+_[A-Fa-f0-9]{8,16}(?:_\d*)?$
+    if (_isDialogueID(id))
+        return true;
+    auto s = id.byCodeUnit().stripRight!isDigit();
+    return s.endsWith('_') && _isDialogueID(s.source[0 .. $ - 1]);
+}
+
 const(char)[ ] _extractDialogueOldText(return const(char)[ ] line) {
     // ^#\s*(\w*\s*".*?)\s*$
-    auto s = line.byChar();
+    auto s = line.byCodeUnit();
     if (!s.skipOver('#'))
         return null;
     s.skipOver!isWhite();
@@ -31,8 +43,8 @@ const(char)[ ] _extractDialogueOldText(return const(char)[ ] line) {
 
 const(char)[ ] _extractPlainStringOldText(return const(char)[ ] line) {
     // ^old\s*(".*?)\s*$
-    auto s = line.byChar();
-    if (!s.skipOver("old".byChar()))
+    auto s = line.byCodeUnit();
+    if (!s.skipOver("old".byCodeUnit()))
         return null;
     s.skipOver!isWhite();
     if (!s.startsWith('"'))
