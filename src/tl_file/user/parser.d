@@ -99,18 +99,18 @@ bool _isSomeBlockHeader(const(char)[ ] line) @nogc {
 
 // I'd like to use `SumType` here, but DMD is stupid and allocates closures
 // for `match` on the GC heap if they close over any variables.
-enum _LineType: ubyte {
-    other, // No data.
-    location, // No data.
-    dialogueBlockHeader,
-    stringsBlockHeader,
-    unrecognizedBlockHeader, // No data.
-    dialogueOld,
-    plainStringOld,
-}
-
 struct _Line {
-    _LineType type;
+    enum Type: ubyte {
+        other, // No data.
+        location, // No data.
+        dialogueBlockHeader,
+        stringsBlockHeader,
+        unrecognizedBlockHeader, // No data.
+        dialogueOld,
+        plainStringOld,
+    }
+
+    Type type;
     union { string value; }
 }
 
@@ -142,25 +142,25 @@ _Line _parseLine(descriptors...)(string line, const(char)[ ] lang) @nogc {
 
         static if (desc == _LineDesc.location) {
             if (_isLocation(s))
-                return _Line(_LineType.location);
+                return _Line(_Line.Type.location);
         } else static if (desc == _LineDesc.dialogueOld) {
             if (const old = extractDialogueOldText(s))
-                return _Line(_LineType.dialogueOld, old);
+                return _Line(_Line.Type.dialogueOld, old);
         } else static if (desc == _LineDesc.plainStringOld) {
             if (const old = extractPlainStringOldText(s))
-                return _Line(_LineType.plainStringOld, old);
+                return _Line(_Line.Type.plainStringOld, old);
         } else static if (desc == _LineDesc.blockHeader) {
             if (const h = _parseBlockHeader(s)) {
                 if (h.lang == lang) {
                     if (isDialogueID(h.id))
-                        return _Line(_LineType.dialogueBlockHeader, h.rest);
+                        return _Line(_Line.Type.dialogueBlockHeader, h.rest);
                     else if (h.id == "strings")
-                        return _Line(_LineType.stringsBlockHeader, h.rest);
+                        return _Line(_Line.Type.stringsBlockHeader, h.rest);
                 }
-                return _Line(_LineType.unrecognizedBlockHeader);
+                return _Line(_Line.Type.unrecognizedBlockHeader);
             }
             if (_isSomeBlockHeader(s))
-                return _Line(_LineType.unrecognizedBlockHeader);
+                return _Line(_Line.Type.unrecognizedBlockHeader);
         } else {
             import std.conv;
 
@@ -196,7 +196,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
         theSwitch: final switch (state) {
         case _State.fileSummary: // At the very beginning of the file.
             ln = _parseLine!q{location, blockHeader}(line, lang);
-            switch (ln.type) with (_LineType) {
+            switch (ln.type) with (_Line.Type) {
             case location: // -> afterLocation
                 state = _State.afterLocation;
                 break;
@@ -219,7 +219,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
         case _State.afterLocation:
             ln = _parseLine!q{blockHeader}(line, lang);
-            switch (ln.type) with (_LineType) {
+            switch (ln.type) with (_Line.Type) {
             case dialogueBlockHeader: // -> dialogueBlock0
                 state = _State.dialogueBlock0;
                 break theSwitch;
@@ -247,7 +247,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
         case _State.dialogueBlock0: // After the header, before old text.
             ln = _parseLine!q{indented|dialogueOld, location, blockHeader}(line, lang);
-            switch (ln.type) with (_LineType) {
+            switch (ln.type) with (_Line.Type) {
             case dialogueOld: // -> dialogueBlock1
                 oldText = ln.value;
                 state = _State.dialogueBlock1;
@@ -281,7 +281,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
         case _State.dialogueBlock1: // After old text.
             ln = _parseLine!q{location, blockHeader}(line, lang);
-            switch (ln.type) with (_LineType) {
+            switch (ln.type) with (_Line.Type) {
             case location: // -> afterLocation
                 state = _State.afterLocation;
                 break;
@@ -303,7 +303,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
             blocks ~= makeDialogueBlock(summary.get, acc0.get, oldText, acc1.get);
             summary.reset();
-            if (ln.type == _LineType.unrecognizedBlockHeader)
+            if (ln.type == _Line.Type.unrecognizedBlockHeader)
                 acc0.reset(line);
             else {
                 acc0.reset();
@@ -315,7 +315,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
         case _State.plainString0: // After the header, before location.
             ln = _parseLine!q{indented|location, indented|plainStringOld, blockHeader}(line, lang);
-            switch (ln.type) with (_LineType) {
+            switch (ln.type) with (_Line.Type) {
             case location: // -> plainString1
                 state = _State.plainString1;
                 break;
@@ -348,7 +348,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
         case _State.plainString1: // After location, before old text.
             ln = _parseLine!q{indented|plainStringOld, blockHeader}(line, lang);
-            switch (ln.type) with (_LineType) {
+            switch (ln.type) with (_Line.Type) {
                 case plainStringOld: // -> plainString2
                     oldText = ln.value;
                     state = _State.plainString2;
@@ -376,7 +376,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
         case _State.plainString2: // After old text.
             ln = _parseLine!q{indented|location, indented|plainStringOld, blockHeader}(line, lang);
-            switch (ln.type) with (_LineType) {
+            switch (ln.type) with (_Line.Type) {
             case location: // -> plainString1 | afterLocation
                 state = isWhite(line[0]) ? _State.plainString1 : _State.afterLocation;
                 break;
@@ -401,11 +401,11 @@ public Declarations parse(string source, const(char)[ ] lang) {
             plainStrings ~= makePlainString(acc0.get, oldText, acc1.get);
             acc0.reset();
             acc1.reset();
-            if (ln.type == _LineType.plainStringOld)
+            if (ln.type == _Line.Type.plainStringOld)
                 oldText = ln.value;
             else {
                 oldText = null;
-                if (ln.type == _LineType.unrecognizedBlockHeader)
+                if (ln.type == _Line.Type.unrecognizedBlockHeader)
                     acc0.expandTo(line);
             }
             lastPlainString.reset(line);
@@ -413,7 +413,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
         case _State.unrecognizedBlock:
             ln = _parseLine!q{location, blockHeader}(line, lang);
-            switch (ln.type) with (_LineType) {
+            switch (ln.type) with (_Line.Type) {
             case location: // -> afterLocation
                 state = _State.afterLocation;
                 break;
