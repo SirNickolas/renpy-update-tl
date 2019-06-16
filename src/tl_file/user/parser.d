@@ -175,59 +175,21 @@ _Line _parseLine(string descriptors)(string line, const(char)[ ] lang) @nogc {
         return mixin(`_parseLine!(` ~ descriptors ~ `)(line, lang)`);
 }
 
-struct _Expander {
-nothrow pure @nogc:
-    private {
-        version (assert) string _data;
-        string _cur;
-    }
-
-    this(string data) {
-        version (assert) _data = data;
-    }
-
-    void reset() { _cur = null; }
-
-    void reset(string s) @trusted
-    in {
-        version (assert)
-            assert(s.ptr >= _data.ptr && s.ptr + s.length <= _data.ptr + _data.length);
-    }
-    do {
-        _cur = s;
-    }
-
-    @property string get() const { return _cur; }
-
-    void expandTo(string s) @trusted
-    in {
-        version (assert)
-            assert(s.ptr >= _data.ptr && s.ptr + s.length <= _data.ptr + _data.length);
-    }
-    do {
-        if (_cur.empty)
-            _cur = s;
-        else {
-            assert(s.ptr >= _cur.ptr);
-            _cur = _cur.ptr[0 .. s.ptr - _cur.ptr + s.length];
-        }
-    }
-}
-
 public Declarations parse(string source, const(char)[ ] lang) {
     import std.array: appender;
     import std.string: lineSplitter;
+    import slice_expander: expander;
 
-    auto fileSummary = _Expander(source);
+    auto fileSummary = expander(source);
     auto blocks = appender!(Block[ ]);
     auto plainStrings = appender!(PlainString[ ]);
 
     auto state = _State.fileSummary;
-    auto summary = _Expander(source);
-    auto acc0 = _Expander(source);
-    auto acc1 = _Expander(source);
-    auto lastBlock = _Expander(source);
-    auto lastPlainString = _Expander(source);
+    auto summary = expander(source);
+    auto acc0 = expander(source);
+    auto acc1 = expander(source);
+    auto lastBlock = expander(source);
+    auto lastPlainString = expander(source);
     string oldText;
     _Line ln;
     foreach (line; source.lineSplitter())
