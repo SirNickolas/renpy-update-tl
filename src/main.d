@@ -2,6 +2,8 @@ import po = program_options;
 
 private @system:
 
+extern(C) __gshared string[ ] rt_options = ["gcopt=gc:precise cleanup:none"];
+
 int _run(const po.ProgramOptions options) {
     import std.algorithm.searching: canFind;
     import std.array: appender;

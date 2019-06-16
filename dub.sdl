@@ -4,6 +4,6 @@ authors     "Nickolay Bukreyev"
 copyright   "Copyright © 2019, Nickolay Bukreyev"
 license     "MIT"
 
-toolchainRequirements frontend=">=2.075"
+toolchainRequirements frontend=">=2.078"
 
 dependency "sumtype" version="~>0.8.6"
