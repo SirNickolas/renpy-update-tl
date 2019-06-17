@@ -1,6 +1,6 @@
 module tl_file.generated.model;
 
-@safe:
+nothrow pure @safe @nogc:
 
 struct DialogueBlock {
     string location;

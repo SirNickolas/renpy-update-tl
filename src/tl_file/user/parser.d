@@ -5,8 +5,6 @@ import std.ascii: isWhite;
 import std.range: empty;
 import std.utf: byCodeUnit;
 
-import tl_file.common_parser;
-import tl_file.user.builder;
 import tl_file.user.model;
 
 import utils: isCIdent;
@@ -97,8 +95,8 @@ bool _isSomeBlockHeader(const(char)[ ] line) @nogc {
     return false;
 }
 
-// I'd like to use `SumType` here, but DMD is stupid and allocates closures
-// for `match` on the GC heap if they close over any variables.
+// Cannot use `SumType` because we need low-level control statements -
+// namely, `goto case` and `break outerSwitch`.
 struct _Line {
     enum Type: ubyte {
         other, // No data.
@@ -130,15 +128,15 @@ enum _removeLineDescModifiers(_LineDesc t) = t & _LineDesc.noModifiers;
 
 _Line _parseLine(descriptors...)(string line, const(char)[ ] lang) @nogc {
     import std.meta;
+    import tl_file.common_parser;
 
     static if (anySatisfy!(_isLineDescIndented, descriptors))
         const dedented = line.byCodeUnit().stripLeft!isWhite().source;
-    string s;
-    static foreach (i, desc; staticMap!(_removeLineDescModifiers, descriptors)) {
+    static foreach (i, desc; staticMap!(_removeLineDescModifiers, descriptors)) {{
         static if (_isLineDescIndented!(descriptors[i]))
-            s = dedented;
+            alias s = dedented;
         else
-            s = line;
+            alias s = line;
 
         static if (desc == _LineDesc.location) {
             if (_isLocation(s))
@@ -166,7 +164,7 @@ _Line _parseLine(descriptors...)(string line, const(char)[ ] lang) @nogc {
 
             static assert(false, text("Unknown line descriptor: ", int(descriptors[i])));
         }
-    }
+    }}
     return _Line.init;
 }
 
@@ -178,19 +176,21 @@ _Line _parseLine(string descriptors)(string line, const(char)[ ] lang) @nogc {
 public Declarations parse(string source, const(char)[ ] lang) {
     import std.array: appender;
     import std.string: lineSplitter;
-    import slice_expander: expander;
 
-    auto fileSummary = expander(source);
+    import slice_expander: expander;
+    import tl_file.user.builder;
+
     auto blocks = appender!(Block[ ]);
     auto plainStrings = appender!(PlainString[ ]);
-
-    auto state = _State.fileSummary;
+    auto fileSummary = expander(source);
     auto summary = expander(source);
     auto acc0 = expander(source);
     auto acc1 = expander(source);
     auto lastBlock = expander(source);
     auto lastPlainString = expander(source);
     string oldText;
+
+    auto state = _State.fileSummary;
     _Line ln;
     foreach (line; source.lineSplitter())
         theSwitch: final switch (state) {

@@ -7,9 +7,9 @@ extern(C) __gshared string[ ] rt_options = ["gcopt=gc:precise cleanup:none"];
 int _run(const po.ProgramOptions options) {
     import std.algorithm.searching: canFind;
     import std.array: appender;
-    import stdf = std.file;
     import std.path: chainPath;
     import std.stdio;
+    import stdf = std.file;
 
     import tlg = tl_file.generated;
     import tlu = tl_file.user;
