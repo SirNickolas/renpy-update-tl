@@ -101,15 +101,16 @@ struct _Line {
     enum Type: ubyte {
         other, // No data.
         location, // No data.
-        dialogueBlockHeader,
-        stringsBlockHeader,
+        dialogueBlockHeader, // `rest` and `id`.
+        stringsBlockHeader, // `rest`.
         unrecognizedBlockHeader, // No data.
-        dialogueOld,
-        plainStringOld,
+        dialogueOld, // `oldText`.
+        plainStringOld, // `oldText`.
     }
 
     Type type;
-    union { string value; }
+    string value0;
+    string value1;
 }
 
 enum _LineDesc {
@@ -151,7 +152,7 @@ _Line _parseLine(descriptors...)(string line, const(char)[ ] lang) @nogc {
             if (const h = _parseBlockHeader(s)) {
                 if (h.lang == lang) {
                     if (isDialogueID(h.id))
-                        return _Line(_Line.Type.dialogueBlockHeader, h.rest);
+                        return _Line(_Line.Type.dialogueBlockHeader, h.rest, h.id);
                     else if (h.id == "strings")
                         return _Line(_Line.Type.stringsBlockHeader, h.rest);
                 }
@@ -188,7 +189,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
     auto acc1 = expander(source);
     auto lastBlock = expander(source);
     auto lastPlainString = expander(source);
-    string oldText;
+    string labelAndHash, oldText;
 
     auto state = _State.fileSummary;
     _Line ln;
@@ -202,6 +203,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                 break;
             case dialogueBlockHeader: // -> dialogueBlock0
                 state = _State.dialogueBlock0;
+                labelAndHash = ln.value1;
                 break;
             case stringsBlockHeader: // -> plainString0
                 state = _State.plainString0;
@@ -222,6 +224,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
             switch (ln.type) with (_Line.Type) {
             case dialogueBlockHeader: // -> dialogueBlock0
                 state = _State.dialogueBlock0;
+                labelAndHash = ln.value1;
                 break theSwitch;
             case stringsBlockHeader: // -> plainString0
                 state = _State.plainString0;
@@ -249,13 +252,14 @@ public Declarations parse(string source, const(char)[ ] lang) {
             ln = _parseLine!q{indented|dialogueOld, location, blockHeader}(line, lang);
             switch (ln.type) with (_Line.Type) {
             case dialogueOld: // -> dialogueBlock1
-                oldText = ln.value;
+                oldText = ln.value0;
                 state = _State.dialogueBlock1;
                 break theSwitch;
             case location: // -> afterLocation
                 state = _State.afterLocation;
                 break;
             case dialogueBlockHeader:
+                labelAndHash = ln.value1;
                 break;
             case stringsBlockHeader: // -> plainString0
                 state = _State.plainString0;
@@ -301,13 +305,15 @@ public Declarations parse(string source, const(char)[ ] lang) {
                 assert(false);
             }
 
-            blocks ~= makeDialogueBlock(summary.get, acc0.get, oldText, acc1.get);
+            blocks ~= makeDialogueBlock(summary.get, labelAndHash, acc0.get, oldText, acc1.get);
             summary.reset();
             if (ln.type == _Line.Type.unrecognizedBlockHeader)
                 acc0.reset(line);
             else {
                 acc0.reset();
                 lastBlock.reset(line);
+                if (ln.type == _Line.Type.dialogueBlockHeader)
+                    labelAndHash = ln.value1;
             }
             acc1.reset();
             oldText = null;
@@ -320,11 +326,12 @@ public Declarations parse(string source, const(char)[ ] lang) {
                 state = _State.plainString1;
                 break;
             case plainStringOld: // -> plainString2
-                oldText = ln.value;
+                oldText = ln.value0;
                 state = _State.plainString2;
                 break;
             case dialogueBlockHeader: // -> dialogueBlock0
                 state = _State.dialogueBlock0;
+                labelAndHash = ln.value1;
                 break;
             case stringsBlockHeader:
                 break;
@@ -349,24 +356,25 @@ public Declarations parse(string source, const(char)[ ] lang) {
         case _State.plainString1: // After location, before old text.
             ln = _parseLine!q{indented|plainStringOld, blockHeader}(line, lang);
             switch (ln.type) with (_Line.Type) {
-                case plainStringOld: // -> plainString2
-                    oldText = ln.value;
-                    state = _State.plainString2;
-                    break theSwitch;
-                case dialogueBlockHeader: // -> dialogueBlock0
-                    state = _State.dialogueBlock0;
-                    break;
-                case stringsBlockHeader: // -> plainString0
-                    state = _State.plainString0;
-                    break;
-                case unrecognizedBlockHeader: // -> unrecognizedBlock
-                    state = _State.unrecognizedBlock;
-                    goto case;
-                case other:
-                    acc0.expandTo(line);
-                    break theSwitch;
-                default:
-                    assert(false);
+            case plainStringOld: // -> plainString2
+                oldText = ln.value0;
+                state = _State.plainString2;
+                break theSwitch;
+            case dialogueBlockHeader: // -> dialogueBlock0
+                state = _State.dialogueBlock0;
+                labelAndHash = ln.value1;
+                break;
+            case stringsBlockHeader: // -> plainString0
+                state = _State.plainString0;
+                break;
+            case unrecognizedBlockHeader: // -> unrecognizedBlock
+                state = _State.unrecognizedBlock;
+                goto case;
+            case other:
+                acc0.expandTo(line);
+                break theSwitch;
+            default:
+                assert(false);
             }
 
             if (!acc0.get.byCodeUnit().all!isWhite())
@@ -384,6 +392,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                 break;
             case dialogueBlockHeader: // -> dialogueBlock0
                 state = _State.dialogueBlock0;
+                labelAndHash = ln.value1;
                 break;
             case stringsBlockHeader: // -> plainString0
                 state = _State.plainString0;
@@ -402,7 +411,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
             acc0.reset();
             acc1.reset();
             if (ln.type == _Line.Type.plainStringOld)
-                oldText = ln.value;
+                oldText = ln.value0;
             else {
                 oldText = null;
                 if (ln.type == _Line.Type.unrecognizedBlockHeader)
@@ -419,6 +428,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
                 break;
             case dialogueBlockHeader: // -> dialogueBlock0
                 state = _State.dialogueBlock0;
+                labelAndHash = ln.value1;
                 break;
             case stringsBlockHeader: // -> plainString0
                 state = _State.plainString0;
@@ -447,7 +457,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
         break;
 
     case dialogueBlock1:
-        blocks ~= makeDialogueBlock(summary.get, acc0.get, oldText, acc1.get);
+        blocks ~= makeDialogueBlock(summary.get, labelAndHash, acc0.get, oldText, acc1.get);
         break;
 
     case plainString1:

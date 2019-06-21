@@ -229,7 +229,7 @@ Block[ ] _finalize(
     return result;
 }
 
-public Block[ ] merge(const(tlu.Block)[ ] _uBlocks, const(tlg.DialogueBlock)[ ] _gBlocks)
+Block[ ] _mergeBlocks(const(tlu.Block)[ ] _uBlocks, const(tlg.DialogueBlock)[ ] _gBlocks)
 in {
     assert(_uBlocks.length <= uint.max);
     assert(_gBlocks.length <= uint.max);
@@ -251,4 +251,8 @@ do {
     const total = nMatched + nInexactlyMatched + nNonMatched + nNew;
 
     return _finalize(aux.gBlocksInfo, total, uBlocks.length);
+}
+
+public Declarations merge(ref const tlu.Declarations uDecls, ref const tlg.Declarations gDecls) {
+    return Declarations(_mergeBlocks(uDecls.blocks, gDecls.dialogueBlocks));
 }

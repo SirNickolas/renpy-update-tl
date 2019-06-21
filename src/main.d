@@ -13,16 +13,23 @@ int _run(const po.ProgramOptions options) {
 
     import tlg = tl_file.generated;
     import tlu = tl_file.user;
+    import tlm = tl_file.merged;
 
-    const source = stdf.readText(
+    const uSource = stdf.readText(
         chainPath(options.projectPath, "game/tl", options.language, "script.rpy")
     );
-    // auto decls = tlg.parse(source);
-    // writeln(decls.dialogueBlocks.length, ' ', decls.plainStrings.length);
-    auto decls = tlu.parse(source, options.language);
-    writeln(decls.blocks.length, ' ', decls.plainStrings.length);
+    const gSource = stdf.readText(
+        chainPath(options.projectPath, "game/tl/a/script.rpy")
+    );
+    auto uDecls = tlu.parse(uSource, options.language);
+    writeln(uDecls.blocks.length, ' ', uDecls.plainStrings.length);
+    stdout.flush();
+    auto gDecls = tlg.parse(gSource);
+    writeln(gDecls.dialogueBlocks.length, ' ', gDecls.plainStrings.length);
+    stdout.flush();
+    auto mDecls = tlm.merge(uDecls, gDecls);
     auto app = appender!(char[ ]);
-    tlu.emit(app, decls);
+    tlm.emit(app, mDecls, uDecls, gDecls, options.language);
     stdf.write("test.rpy", app.data);
     return 0;
 }

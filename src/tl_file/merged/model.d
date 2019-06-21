@@ -21,3 +21,8 @@ struct NonMatchedBlock {
 struct NewBlock { }
 
 alias Block = SumType!(MatchedBlock, InexactlyMatchedBlock, NonMatchedBlock, NewBlock);
+
+struct Declarations {
+    Block[ ] blocks;
+    // TODO: Plain strings.
+}

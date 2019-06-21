@@ -27,8 +27,20 @@ string stripBlankLines(string text) {
 
 private alias _strip = stripBlankLines;
 
-Block makeDialogueBlock(string summary, string contents0, string oldText, string contents1) {
-    return Block(DialogueBlock(summary._strip(), contents0._strip(), oldText, contents1._strip()));
+Block makeDialogueBlock(
+    string summary,
+    string labelAndHash,
+    string contents0,
+    string oldText,
+    string contents1,
+) {
+    return Block(DialogueBlock(
+        summary._strip(),
+        labelAndHash,
+        contents0._strip(),
+        oldText,
+        contents1._strip(),
+    ));
 }
 
 Block makeUnrecognizedBlock(string contents) {

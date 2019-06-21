@@ -17,6 +17,9 @@ const(char)[ ] _extractLocation(const(char)[ ] line) @nogc {
         return null;
     s.skipOver!isWhite();
     auto t = s.find(".rpy".byCodeUnit());
+    if (t.empty)
+        return null;
+    t = t[4 .. $];
     t.skipOver('m');
     if (!t.skipOver(':') || !t.startsWith!isDigit())
         return null;
