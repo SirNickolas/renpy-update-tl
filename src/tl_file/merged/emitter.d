@@ -4,9 +4,9 @@ import std.array: Appender;
 import std.ascii: newline;
 import std.typecons: Flag, Yes, No;
 
-import tl_file.merged.model;
 import tlg = tl_file.generated.model;
 import tlu = tl_file.user.model;
+import tlm = tl_file.merged.model;
 
 private nothrow pure @safe:
 
@@ -135,7 +135,7 @@ nothrow pure:
     }
 
     void emit(
-        ref const Declarations d,
+        ref const tlm.Results d,
         ref const tlu.Declarations ud,
         ref const tlg.Declarations gd,
     ) {
@@ -158,26 +158,26 @@ nothrow pure:
             else
                 nl = true;
             b.match!(
-                (MatchedBlock b) => ud.blocks[b.uIndex].match!(
+                (tlm.Matched b) => ud.blocks[b.uIndex].match!(
                     case_!(const tlu.DialogueBlock, (ref u) =>
                         emit(Yes.exact, u, gd.dialogueBlocks[i++])
                     ),
                     (tlu.UnrecognizedBlock _) => unreachable,
                 ),
-                (InexactlyMatchedBlock b) => ud.blocks[b.uIndex].match!(
+                (tlm.InexactlyMatched b) => ud.blocks[b.uIndex].match!(
                     case_!(const tlu.DialogueBlock, (ref u) =>
                         emit(No.exact, u, gd.dialogueBlocks[i++])
                     ),
                     (tlu.UnrecognizedBlock _) => unreachable,
                 ),
-                (NonMatchedBlock b) => ud.blocks[b.uIndex].match!(
+                (tlm.NonMatched b) => ud.blocks[b.uIndex].match!(
                     case_!(const tlu.DialogueBlock, (ref u) =>
                         emitOutdated(u)
                     ),
                     (tlu.UnrecognizedBlock u) =>
                         emit(u),
                 ),
-                (NewBlock _) => emit(gd.dialogueBlocks[i++]),
+                (tlm.New _) => emit(gd.dialogueBlocks[i++]),
             );
         }
         assert(i == gd.dialogueBlocks.length);
@@ -191,13 +191,13 @@ nothrow pure:
         write(`translate `, lang, _ct!(` strings:` ~ newline));
         foreach (ps; d.plainStrings)
             ps.match!(
-                (MatchedBlock ps) =>
+                (tlm.Matched ps) =>
                     emit(Yes.exact, ud.plainStrings[ps.uIndex], gd.plainStrings[i++]),
-                (InexactlyMatchedBlock ps) =>
+                (tlm.InexactlyMatched ps) =>
                     emit(No.exact, ud.plainStrings[ps.uIndex], gd.plainStrings[i++]),
-                (NonMatchedBlock ps) =>
+                (tlm.NonMatched ps) =>
                     emitOutdated(ud.plainStrings[ps.uIndex]),
-                (NewBlock _) =>
+                (tlm.New _) =>
                     emit(gd.plainStrings[i++]),
             );
         assert(i == gd.plainStrings.length);
@@ -206,7 +206,7 @@ nothrow pure:
 
 public void emit(
     ref Appender!(char[ ]) o,
-    ref const Declarations d,
+    ref const tlm.Results d,
     ref const tlu.Declarations ud,
     ref const tlg.Declarations gd,
     const(char)[ ] language,

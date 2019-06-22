@@ -51,36 +51,36 @@ pure @nogc unittest {
     static assert(_isCTTranslatableRange!(IndexedRange!(const(CT)[ ], _GIndex), _GIndex));
 }
 
-struct _GBlockInfo {
+struct _GItemInfo {
     _UIndex match;
     _GIndex nextEponymous;
     bool matchedExactly = void; // Do not inspect this if `match` is not set.
 }
 
 struct _Aux {
-    IndexedRange!(_GBlockInfo[ ], _GIndex) gBlocksInfo;
+    IndexedRange!(_GItemInfo[ ], _GIndex) gItemsInfo;
     _GIndex[string] oldTextMap;
 
     @disable this(this);
 }
 
-_Aux _prepare(GR)(GR gBlocks) pure if (_isGRange!GR) {
+_Aux _prepare(GR)(GR gItems) pure if (_isGRange!GR) {
     import std.array: uninitializedArray;
 
     _Aux result = {
         indexedRange!_GIndex(
-            uninitializedArray!(_GBlockInfo[ ])(cast(size_t)gBlocks.length),
+            uninitializedArray!(_GItemInfo[ ])(cast(size_t)gItems.length),
         ),
     };
-    _GIndex i = gBlocks.length;
-    foreach_reverse (ref b; gBlocks) {
+    _GIndex i = gItems.length;
+    foreach_reverse (ref b; gItems) {
         i--;
-        result.gBlocksInfo[i].match = _UIndex.init;
+        result.gItemsInfo[i].match = _UIndex.init;
         if (auto p = b.value in result.oldTextMap) {
-            result.gBlocksInfo[i].nextEponymous = *p;
+            result.gItemsInfo[i].nextEponymous = *p;
             *p = i;
         } else {
-            result.gBlocksInfo[i].nextEponymous = _GIndex.init;
+            result.gItemsInfo[i].nextEponymous = _GIndex.init;
             result.oldTextMap[b.value] = i;
         }
     }
@@ -89,37 +89,36 @@ _Aux _prepare(GR)(GR gBlocks) pure if (_isGRange!GR) {
 }
 
 struct _ExactMatchResults {
-    // TODO: Rename them.
-    _UIndex[ ] uIndices;
-    _GIndex[ ] gIndices;
+    _UIndex[ ] uUnmatched;
+    _GIndex[ ] gUnmatched;
 }
 
-_GIndex[ ] _getUnmatchedGIndices(ref const IndexedRange!(_GBlockInfo[ ], _GIndex) gBlocksInfo)
+_GIndex[ ] _getUnmatchedGIndices(ref const IndexedRange!(_GItemInfo[ ], _GIndex) gItemsInfo)
 pure {
     import std.algorithm.iteration: filter, map;
     import std.array: array;
     import std.range: enumerate;
 
     return
-        gBlocksInfo.data
+        gItemsInfo.data
         .enumerate!uint()
         .filter!(a => a.value.match == _UIndex.init)
         .map!(a => _GIndex(a.index))
         .array();
 }
 
-_ExactMatchResults _matchExact(UR)(ref _Aux aux, UR uBlocks) pure if (_isURange!UR) {
+_ExactMatchResults _matchExact(UR)(ref _Aux aux, UR uItems) pure if (_isURange!UR) {
     import std.array: appender;
 
     auto uUnmatched = appender!(_UIndex[ ]);
     uUnmatched.reserve(32); // Just a random number, really.
-    for (_UIndex ui = 0; ui < uBlocks.length; ui++) {
-        if (!uBlocks[ui].valid)
+    for (_UIndex ui = 0; ui < uItems.length; ui++) {
+        if (!uItems[ui].valid)
             continue;
-        if (auto p = uBlocks[ui].value in aux.oldTextMap) {
+        if (auto p = uItems[ui].value in aux.oldTextMap) {
             const gi = *p;
             if (gi != _GIndex.init) {
-                auto gInfo = (() @trusted => &aux.gBlocksInfo[gi])();
+                auto gInfo = (() @trusted => &aux.gItemsInfo[gi])();
                 assert(gInfo.match == _UIndex.init);
                 gInfo.match = ui;
                 gInfo.matchedExactly = true;
@@ -130,12 +129,12 @@ _ExactMatchResults _matchExact(UR)(ref _Aux aux, UR uBlocks) pure if (_isURange!
         uUnmatched ~= ui;
     }
 
-    return _ExactMatchResults(uUnmatched.data, _getUnmatchedGIndices(aux.gBlocksInfo));
+    return _ExactMatchResults(uUnmatched.data, _getUnmatchedGIndices(aux.gItemsInfo));
 }
 
 _GIndex _findBestMatch(GR)(
     string needle,
-    GR gBlocks,
+    GR gItems,
     const(_GIndex)[ ] gIndices,
     double maxDeviation,
 ) @nogc if (_isGRange!GR) {
@@ -156,7 +155,7 @@ _GIndex _findBestMatch(GR)(
     // This is the main bottleneck.
     // TODO: Optimize.
     foreach (gi; gIndices) {
-        const s = gBlocks[gi].value;
+        const s = gItems[gi].value;
         const threshold = needle.length >= s.length ? needleThreshold : calcThreshold(s);
         // FIXME: This is impure since it `malloc`ates memory. On each iteration, yes.
         const dist = levenshteinDistance(needle.byCodeUnit(), s.byCodeUnit());
@@ -175,19 +174,19 @@ struct _InexactMatchResults {
 
 _InexactMatchResults _matchInexact(UR, GR)(
     const _ExactMatchResults exactRes,
-    UR uBlocks,
-    GR gBlocks,
+    UR uItems,
+    GR gItems,
 ) if (_isURange!UR && _isGRange!GR) {
     import std.array: uninitializedArray;
 
-    auto gIndices = uninitializedArray!(_GIndex[ ])(exactRes.uIndices.length);
+    auto gIndices = uninitializedArray!(_GIndex[ ])(exactRes.uUnmatched.length);
     uint count;
     // TODO: Parallelize.
-    foreach (i, ui; exactRes.uIndices) {
-        assert(uBlocks[ui].valid);
-        const userOldText = uBlocks[ui].value;
+    foreach (i, ui; exactRes.uUnmatched) {
+        assert(uItems[ui].valid);
+        const userOldText = uItems[ui].value;
         // TODO: Add a way to customize `maxDeviation`.
-        const best = gIndices[i] = _findBestMatch(userOldText, gBlocks, exactRes.gIndices, .2);
+        const best = gIndices[i] = _findBestMatch(userOldText, gItems, exactRes.gUnmatched, .2);
         if (best != _GIndex.init)
             count++;
     }
@@ -195,7 +194,7 @@ _InexactMatchResults _matchInexact(UR, GR)(
 }
 
 void _mergeInexactResults(
-    ref IndexedRange!(_GBlockInfo[ ], _GIndex) gBlocksInfo,
+    ref IndexedRange!(_GItemInfo[ ], _GIndex) gItemsInfo,
     const(_UIndex)[ ] uIndices,
     ref _InexactMatchResults inexactRes,
 ) pure @nogc {
@@ -203,57 +202,57 @@ void _mergeInexactResults(
         return;
     foreach (i, gi; inexactRes.gIndices)
         if (gi != _GIndex.init) {
-            if (gBlocksInfo[gi].match != _UIndex.init) {
-                // Multiple uBlocks matched the same gBlock; retain only the first match.
+            if (gItemsInfo[gi].match != _UIndex.init) {
+                // Multiple uItems matched the same gItem; retain only the first match.
                 inexactRes.count--;
             } else {
-                gBlocksInfo[gi].match = cast()uIndices[i];
-                gBlocksInfo[gi].matchedExactly = false;
+                gItemsInfo[gi].match = cast()uIndices[i];
+                gItemsInfo[gi].matchedExactly = false;
             }
         }
 }
 
 IndexedRange!(bool[ ], _UIndex) _createUMatchStatuses(
-    const IndexedRange!(_GBlockInfo[ ], _GIndex) gBlocksInfo,
+    const IndexedRange!(_GItemInfo[ ], _GIndex) gItemsInfo,
     _UIndex n,
 ) pure {
     auto result = indexedRange!_UIndex(new bool[n + 1]);
-    foreach (ref gInfo; gBlocksInfo.data)
+    foreach (ref gInfo; gItemsInfo.data)
         if (gInfo.match != _UIndex.init)
             result[gInfo.match] = true;
     result[n] = true; // Sentinel.
     return result;
 }
 
-Block[ ] _finalize(
-    const IndexedRange!(_GBlockInfo[ ], _GIndex) gBlocksInfo,
+MergeResult[ ] _finalize(
+    const IndexedRange!(_GItemInfo[ ], _GIndex) gItemsInfo,
     size_t total,
-    _UIndex uBlocksLength,
+    _UIndex uItemsLength,
 ) pure {
     import std.array: uninitializedArray;
     import std.conv: emplace;
 
-    auto result = uninitializedArray!(Block[ ])(total);
+    auto result = uninitializedArray!(MergeResult[ ])(total);
     size_t w = 0;
 
-    auto uMatchedSomehow = _createUMatchStatuses(gBlocksInfo, uBlocksLength);
-    // Non-matched blocks at the top of the file.
+    auto uMatchedSomehow = _createUMatchStatuses(gItemsInfo, uItemsLength);
+    // Non-matched items at the top of the file.
     for (_UIndex i = 0; !uMatchedSomehow[i]; i++)
-        emplace(&result[w++], NonMatchedBlock(cast(uint)i));
+        emplace(&result[w++], NonMatched(cast(uint)i));
 
-    foreach (ref gInfo; gBlocksInfo.data) {
+    foreach (ref gInfo; gItemsInfo.data) {
         auto i = cast()gInfo.match;
         if (i == _UIndex.init)
-            emplace(&result[w++], NewBlock.init);
+            emplace(&result[w++], New.init);
         else {
             if (gInfo.matchedExactly)
-                emplace(&result[w], MatchedBlock(cast(uint)i));
+                emplace(&result[w], Matched(cast(uint)i));
             else
-                emplace(&result[w], InexactlyMatchedBlock(cast(uint)i));
+                emplace(&result[w], InexactlyMatched(cast(uint)i));
             w++;
-            // Bind non-matched blocks to the matched one preceeding them.
+            // Bind non-matched items to the matched one preceeding them.
             while (!uMatchedSomehow[_UIndex(++i)])
-                emplace(&result[w++], NonMatchedBlock(cast(uint)i));
+                emplace(&result[w++], NonMatched(cast(uint)i));
         }
     }
 
@@ -261,34 +260,36 @@ Block[ ] _finalize(
     return result;
 }
 
-Block[ ] _merge(UR, GR)(UR _uBlocks, GR _gBlocks)
+MergeResult[ ] _merge(UR, GR)(UR _uItems, GR _gItems)
 if (_isTranslatableRange!(UR, size_t) && _isTranslatableRange!(GR, size_t))
 in {
-    assert(_uBlocks.length <= uint.max);
-    assert(_gBlocks.length <= uint.max);
+    assert(_uItems.length + _gItems.length <= uint.max);
+}
+out (result) {
+    assert(result.length >= _gItems.length);
+    assert(result.length <= _gItems.length + _uItems.length);
 }
 do {
-    auto uBlocks = indexedRange!_UIndex(_uBlocks);
-    auto gBlocks = indexedRange!_GIndex(_gBlocks);
+    auto uItems = indexedRange!_UIndex(_uItems);
+    auto gItems = indexedRange!_GIndex(_gItems);
 
-    auto aux = _prepare(gBlocks);
-    const exactRes = _matchExact(aux, uBlocks);
-    auto inexactRes = _matchInexact(exactRes, uBlocks, gBlocks);
-    _mergeInexactResults(aux.gBlocksInfo, exactRes.uIndices, inexactRes);
+    auto aux = _prepare(gItems);
+    const exactRes = _matchExact(aux, uItems);
+    auto inexactRes = _matchInexact(exactRes, uItems, gItems);
+    _mergeInexactResults(aux.gItemsInfo, exactRes.uUnmatched, inexactRes);
 
-    const nMatched = gBlocks.length - exactRes.gIndices.length;
-    assert(nMatched == uBlocks.length - exactRes.uIndices.length);
+    const nMatched = gItems.length - exactRes.gUnmatched.length;
+    assert(nMatched == uItems.length - exactRes.uUnmatched.length);
     const nInexactlyMatched = inexactRes.count;
-    const nNonMatched = uBlocks.length - nMatched - nInexactlyMatched;
-    const nNew = gBlocks.length - nMatched - nInexactlyMatched;
+    const nNonMatched = uItems.length - nMatched - nInexactlyMatched;
+    const nNew = gItems.length - nMatched - nInexactlyMatched;
     const total = nMatched + nInexactlyMatched + nNonMatched + nNew;
 
-    return _finalize(aux.gBlocksInfo, total, uBlocks.length);
+    return _finalize(aux.gItemsInfo, total, uItems.length);
 }
 
-public Declarations merge(ref const tlu.Declarations uDecls, ref const tlg.Declarations gDecls) {
+public Results merge(ref const tlu.Declarations uDecls, ref const tlg.Declarations gDecls) {
     import std.algorithm.iteration: map;
-    import sumtype;
 
     static struct String {
         enum valid = true;
@@ -300,6 +301,8 @@ public Declarations merge(ref const tlu.Declarations uDecls, ref const tlg.Decla
         private const(tlu.Block)* _b;
 
         @property bool valid() const {
+            import sumtype;
+
             return (*_b).match!(
                 (ref const tlu.DialogueBlock _) => true,
                 (ref const tlu.UnrecognizedBlock _) => false,
@@ -307,6 +310,7 @@ public Declarations merge(ref const tlu.Declarations uDecls, ref const tlg.Decla
         }
 
         @property string value() const {
+            import sumtype;
             import utils: unreachable;
 
             return (*_b).match!(
@@ -321,5 +325,5 @@ public Declarations merge(ref const tlu.Declarations uDecls, ref const tlg.Decla
     auto uStrings = uDecls.plainStrings.map!((ref b) => String(b.oldText));
     auto gStrings = gDecls.plainStrings.map!((ref b) => String(b.oldText));
 
-    return Declarations(_merge(uBlocks, gBlocks), _merge(uStrings, gStrings));
+    return Results(_merge(uBlocks, gBlocks), _merge(uStrings, gStrings));
 }

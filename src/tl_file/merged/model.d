@@ -4,26 +4,25 @@ import sumtype;
 
 nothrow pure @safe @nogc:
 
-// TODO: Rename these structures.
-struct MatchedBlock {
+struct Matched {
     uint uIndex = uint.max;
 }
 
-struct InexactlyMatchedBlock {
+struct InexactlyMatched {
     uint uIndex = uint.max;
 }
 
 // Either unrecognized or deleted.
-struct NonMatchedBlock {
+struct NonMatched {
     uint uIndex = uint.max;
 }
 
 // Added.
-struct NewBlock { }
+struct New { }
 
-alias Block = SumType!(MatchedBlock, InexactlyMatchedBlock, NonMatchedBlock, NewBlock);
+alias MergeResult = SumType!(Matched, InexactlyMatched, NonMatched, New);
 
-struct Declarations {
-    Block[ ] blocks;
-    Block[ ] plainStrings;
+struct Results {
+    MergeResult[ ] blocks;
+    MergeResult[ ] plainStrings;
 }
