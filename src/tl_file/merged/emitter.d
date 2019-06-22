@@ -2,7 +2,6 @@ module tl_file.merged.emitter;
 
 import std.array: Appender;
 import std.ascii: newline;
-import std.range: empty;
 import std.typecons: Flag, Yes, No;
 
 import tl_file.merged.model;
@@ -38,6 +37,8 @@ nothrow pure:
     }
 
     void writePara(const(char)[ ] text) {
+        import std.range: empty;
+
         if (!text.empty)
             write(text, newline);
     }
@@ -48,11 +49,14 @@ nothrow pure:
 
         foreach (line; text.lineSplitter())
             if (line.empty)
-                *o ~= _ct!('#' ~ newline);
+                write(_ct!('#' ~ newline));
             else
                 write(`# `, line, newline);
     }
 
+    /+
+        Dialogue blocks.
+    +/
     void emit(Flag!q{exact} exact, ref const tlu.DialogueBlock u, ref const tlg.DialogueBlock g) {
         write(`# `, g.location, newline);
         if (!exact)
@@ -93,23 +97,64 @@ nothrow pure:
         );
     }
 
+    /+
+        Plain strings.
+    +/
+    void emit(Flag!q{exact} exact, ref const tlu.PlainString u, ref const tlg.PlainString g) {
+        write(_ct!(newline ~ `    # `), g.location, newline);
+        if (!exact)
+            write(_ct!(`    # TODO: MODIFIED.` ~ newline));
+        writePara(u.contents0);
+        write(`    old `, g.oldText, newline);
+        if (!exact)
+            write(
+                `    # old `, u.oldText,
+                _ct!(` # OUTDATED; delete this line when no longer needed.` ~ newline),
+            );
+        writePara(u.contents1);
+    }
+
+    void emitOutdated(ref const tlu.PlainString u) {
+        // We've lost location. Do we care about it much?..
+        write(_ct!(
+            newline ~ `# TODO: OUTDATED; delete these lines when no longer needed.` ~ newline
+        ));
+        writeParaCommented(u.contents0);
+        write(`#     old `, u.oldText, newline);
+        writeParaCommented(u.contents1);
+    }
+
+    void emit(ref const tlg.PlainString g) {
+        write(_ct!(
+            newline ~
+            `    # `), g.location, _ct!(newline ~
+            `    # TODO: NEW.` ~ newline ~
+            `    old `), g.oldText, _ct!(newline ~
+            `    new ""` ~ newline),
+        );
+    }
+
     void emit(
         ref const Declarations d,
         ref const tlu.Declarations ud,
         ref const tlg.Declarations gd,
     ) {
+        import std.range: empty;
         import sumtype;
         import utils: case_, unreachable;
 
         bool nl;
+        // Summary.
         if (!ud.summary.empty) {
             write(ud.summary, newline);
             nl = true;
         }
+
+        // Dialogue and unrecognized blocks.
         size_t i = 0;
         foreach (b; d.blocks) {
             if (nl)
-                *o ~= newline;
+                write(newline);
             else
                 nl = true;
             b.match!(
@@ -135,39 +180,27 @@ nothrow pure:
                 (NewBlock _) => emit(gd.dialogueBlocks[i++]),
             );
         }
-        write(_ct!(newline ~ `# TODO: translate `), lang, _ct!(` strings.` ~ newline));
-        /+
-        foreach (ref b; d.blocks) {
-            if (nl)
-                o ~= newline;
-            else
-                nl = true;
-            b.match!(
-                (scope ref const DialogueBlock db) {
-                    o ~= _ct!(`# stdin.rpy:0` ~ newline);
-                    o._writePara(db.summary);
-                    o ~= _ct!(`translate english label_abcdef01:` ~ newline ~ newline);
-                    o._writePara(db.contents0);
-                    o._write(`    # `, db.oldText, newline);
-                    o._writePara(db.contents1);
-                },
-                (scope ref const UnrecognizedBlock ub) => o._write(ub.contents, newline),
+        assert(i == gd.dialogueBlocks.length);
+
+        // Plain strings.
+        if (d.plainStrings.empty)
+            return;
+        i = 0;
+        if (nl)
+            write(newline);
+        write(`translate `, lang, _ct!(` strings:` ~ newline));
+        foreach (ps; d.plainStrings)
+            ps.match!(
+                (MatchedBlock ps) =>
+                    emit(Yes.exact, ud.plainStrings[ps.uIndex], gd.plainStrings[i++]),
+                (InexactlyMatchedBlock ps) =>
+                    emit(No.exact, ud.plainStrings[ps.uIndex], gd.plainStrings[i++]),
+                (NonMatchedBlock ps) =>
+                    emitOutdated(ud.plainStrings[ps.uIndex]),
+                (NewBlock _) =>
+                    emit(gd.plainStrings[i++]),
             );
-        }
-        if (!d.plainStrings.empty) {
-            if (nl)
-                o ~= newline;
-            /+ else
-                nl = true; +/
-            o ~= _ct!(`translate english strings:` ~ newline);
-            foreach (ref ps; d.plainStrings) {
-                o ~= _ct!(newline ~ `    # stdin.rpy:0` ~ newline);
-                o._writePara(ps.contents0);
-                o._write(`    old `, ps.oldText, newline);
-                o._writePara(ps.contents1);
-            }
-        }
-        +/
+        assert(i == gd.plainStrings.length);
     }
 }
 
