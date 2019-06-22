@@ -4,6 +4,7 @@ import sumtype;
 
 nothrow pure @safe @nogc:
 
+// TODO: Rename these structures.
 struct MatchedBlock {
     uint uIndex = uint.max;
 }
@@ -24,5 +25,5 @@ alias Block = SumType!(MatchedBlock, InexactlyMatchedBlock, NonMatchedBlock, New
 
 struct Declarations {
     Block[ ] blocks;
-    // TODO: Plain strings.
+    Block[ ] plainStrings;
 }
