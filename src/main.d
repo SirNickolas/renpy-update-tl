@@ -8,6 +8,7 @@ int _run(const po.ProgramOptions options) {
     import std.algorithm.searching: canFind;
     import std.array: appender;
     import std.path: chainPath;
+    import std.range: empty;
     import std.stdio;
     import stdf = std.file;
 
@@ -15,11 +16,14 @@ int _run(const po.ProgramOptions options) {
     import tlu = tl_file.user;
     import tlm = tl_file.merged;
 
+    if (options.debugLanguageTemplate.empty)
+        assert(false, "Running without --assume-fresh is not implemented yet");
+
     const uSource = stdf.readText(
         chainPath(options.projectPath, "game/tl", options.language, "script.rpy")
     );
     const gSource = stdf.readText(
-        chainPath(options.projectPath, "game/tl/a/script.rpy")
+        chainPath(options.projectPath, "game/tl", options.debugLanguageTemplate, "script.rpy")
     );
     auto uDecls = tlu.parse(uSource, options.language);
     writeln(uDecls.blocks.length, ' ', uDecls.plainStrings.length);

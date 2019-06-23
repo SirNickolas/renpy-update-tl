@@ -15,6 +15,7 @@ public struct ProgramOptions {
     string projectPath;
     string language;
     string renpyPath;
+    string debugLanguageTemplate;
 }
 
 auto _parseOptions(ref ProgramOptions o, ref string[ ] args) @system {
@@ -23,6 +24,7 @@ auto _parseOptions(ref ProgramOptions o, ref string[ ] args) @system {
     return getopt(args,
         config.caseSensitive, // config.bundling,
         "renpy", "Path to Ren'Py SDK.", &o.renpyPath,
+        "assume-fresh", "Bypass Ren'Py invocation (debug).", &o.debugLanguageTemplate,
     );
 }
 
@@ -41,6 +43,11 @@ void _validate(ref const ProgramOptions o) pure {
     enforce(isValidPath(o.projectPath), "Invalid project path: `" ~ o.projectPath ~ '`');
     if (!o.renpyPath.empty)
         enforce(isValidPath(o.renpyPath), "Invalid Ren'Py SDK path: `" ~ o.renpyPath ~ '`');
+    if (!o.debugLanguageTemplate.empty)
+        enforce(
+            _isValidLang(o.debugLanguageTemplate),
+            "Invalid language: `" ~ o.debugLanguageTemplate ~ '`',
+        );
 }
 
 public struct ParseError { }
