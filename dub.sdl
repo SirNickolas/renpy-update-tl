@@ -6,4 +6,4 @@ license     "MIT"
 
 toolchainRequirements frontend=">=2.078"
 
-dependency "sumtype" version="~>0.8.6"
+dependency "sumtype" version="~>0.8.9"

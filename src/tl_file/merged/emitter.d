@@ -141,7 +141,7 @@ nothrow pure:
     ) {
         import std.range: empty;
         import sumtype;
-        import utils: case_, unreachable;
+        import utils: unreachable;
 
         bool nl;
         // Summary.
@@ -159,21 +159,18 @@ nothrow pure:
                 nl = true;
             b.match!(
                 (tlm.Matched b) => ud.blocks[b.uIndex].match!(
-                    case_!(const tlu.DialogueBlock, (ref u) =>
-                        emit(Yes.exact, u, gd.dialogueBlocks[i++])
-                    ),
+                    (ref const tlu.DialogueBlock u) =>
+                        emit(Yes.exact, u, gd.dialogueBlocks[i++]),
                     (tlu.UnrecognizedBlock _) => unreachable,
                 ),
                 (tlm.InexactlyMatched b) => ud.blocks[b.uIndex].match!(
-                    case_!(const tlu.DialogueBlock, (ref u) =>
-                        emit(No.exact, u, gd.dialogueBlocks[i++])
-                    ),
+                    (ref const tlu.DialogueBlock u) =>
+                        emit(No.exact, u, gd.dialogueBlocks[i++]),
                     (tlu.UnrecognizedBlock _) => unreachable,
                 ),
                 (tlm.NonMatched b) => ud.blocks[b.uIndex].match!(
-                    case_!(const tlu.DialogueBlock, (ref u) =>
-                        emitOutdated(u)
-                    ),
+                    (ref const tlu.DialogueBlock u) =>
+                        emitOutdated(u),
                     (tlu.UnrecognizedBlock u) =>
                         emit(u),
                 ),
