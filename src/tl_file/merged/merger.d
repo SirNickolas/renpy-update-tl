@@ -49,6 +49,8 @@ pure @nogc unittest {
     static assert(_isTranslatableRange!(IndexedRange!(const(CT)[ ], _GIndex), _GIndex));
     static assert(_isCTTranslatableRange!(IndexedRange!(const(CT)[ ], _UIndex), _UIndex));
     static assert(_isCTTranslatableRange!(IndexedRange!(const(CT)[ ], _GIndex), _GIndex));
+    static assert(!_isCTTranslatableRange!(IndexedRange!(const(RT)[ ], _UIndex), _UIndex));
+    static assert(!_isCTTranslatableRange!(IndexedRange!(const(RT)[ ], _GIndex), _GIndex));
 }
 
 struct _GItemInfo {
