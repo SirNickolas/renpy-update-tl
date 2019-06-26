@@ -6,4 +6,6 @@ license     "MIT"
 
 toolchainRequirements frontend=">=2.078"
 
+subPackage "./gui"
+
 dependency "sumtype" version="~>0.8.9"
