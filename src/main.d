@@ -29,18 +29,14 @@ public lp.LangPack!(tlm.Results) _mergeLangPacks(
 }
 
 int _run(const po.ProgramOptions options) @system {
-    import std.array: appender, array, uninitializedArray;
+    import std.array: appender, uninitializedArray;
     import std.conv: text;
     import std.parallelism: defaultPoolThreads, parallel, taskPool;
     import std.path: absolutePath, buildPath, dirName;
     import std.process: wait;
     import std.range: empty, repeat, zip;
-    import std.stdio;
     import stdf = std.file;
     import ri = renpy_interaction;
-
-    if (options.outputDir.empty)
-        assert(false, "Running without `-o` is not implemented yet");
 
     if (options.jobs)
         defaultPoolThreads = options.jobs - 1;
@@ -74,7 +70,8 @@ int _run(const po.ProgramOptions options) @system {
     const gLangPack = lp.collect!(tlg.parseFile)(gen.path);
 
     // Delete it immediately to avoid leaving garbage if something goes wrong.
-    stdf.rmdirRecurse(gen.path);
+    if (options.debugLanguageTemplate.empty)
+        stdf.rmdirRecurse(gen.path);
 
     // Merge translations.
     const mLangPacks = taskPool.amap!_mergeLangPacks(
@@ -83,7 +80,7 @@ int _run(const po.ProgramOptions options) @system {
     );
 
     // Write them back.
-    const targetPath = options.outputDir; // TODO.
+    const outputDir = !options.outputDir.empty ? options.outputDir : baseTlPath;
     auto wls = taskPool.workerLocalStorage(appender(uninitializedArray!(char[ ])(32 << 10)));
     foreach (z; parallel(zip(options.languages, uLangPacks, mLangPacks), 1)) {
         const lang = z[0];
@@ -94,7 +91,7 @@ int _run(const po.ProgramOptions options) @system {
             const uDecls = uLangPack.files.get(kv.key, tlu.Declarations.init);
             app.clear();
             tlm.emit(*app, kv.value, uDecls, gLangPack.files[kv.key], lang);
-            const filename = buildPath(targetPath, lang, kv.key);
+            const filename = buildPath(outputDir, lang, kv.key);
             stdf.mkdirRecurse(dirName(filename));
             stdf.write(filename, app.data);
         }
