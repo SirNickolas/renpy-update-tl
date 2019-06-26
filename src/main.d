@@ -20,7 +20,7 @@ public auto _collectUserLangPack(Tuple!(string, const string) args) @system {
 
 public lp.LangPack!(tlm.Results) _mergeLangPacks(
     Tuple!(const lp.LangPack!(tlu.Declarations), const lp.LangPack!(tlg.Declarations)) args,
-) nothrow {
+) @system {
     return lp.merge(args.expand);
 }
 
