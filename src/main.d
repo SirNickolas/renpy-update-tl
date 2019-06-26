@@ -8,14 +8,18 @@ import lp = tl_file.lang_pack;
 
 private @safe:
 
-extern(C) __gshared string[ ] rt_options = ["gcopt=gc:precise cleanup:none"];
+extern(C) __gshared string[ ] rt_options = [`gcopt=gc:precise cleanup:none`];
 
 // The compiler requires these functions to be `public`.
 public auto _collectUserLangPack(Tuple!(string, const string) args) @system {
+    import std.file: exists;
     import std.path: buildPath;
     import tl_file.user.file_parser;
 
-    return lp.collect!parseFile(buildPath(args.expand), args[1]);
+    const path = buildPath(args.expand);
+    if (exists(path))
+        return lp.collect!parseFile(path, args[1]);
+    return typeof(return).init;
 }
 
 public lp.LangPack!(tlm.Results) _mergeLangPacks(
@@ -26,46 +30,59 @@ public lp.LangPack!(tlm.Results) _mergeLangPacks(
 
 int _run(const po.ProgramOptions options) @system {
     import std.array: appender, array, uninitializedArray;
+    import std.conv: text;
     import std.parallelism: defaultPoolThreads, parallel, taskPool;
-    import std.path: asAbsolutePath, buildPath, chainPath, dirName;
+    import std.path: absolutePath, buildPath, dirName;
+    import std.process: wait;
     import std.range: empty, repeat, zip;
     import std.stdio;
     import stdf = std.file;
+    import ri = renpy_interaction;
 
-    if (options.debugLanguageTemplate.empty)
-        assert(false, "Running without `--assume-fresh` is not implemented yet");
     if (options.outputDir.empty)
         assert(false, "Running without `-o` is not implemented yet");
 
     if (options.jobs)
         defaultPoolThreads = options.jobs - 1;
 
-    immutable baseTlPath = chainPath(options.projectPath, "game/tl").asAbsolutePath().array();
+    const projectPath = absolutePath(options.projectPath);
+    const baseTlPath = buildPath(projectPath, `game/tl`);
 
-    string gPath;
-    if (options.debugLanguageTemplate.empty) {
-        // TODO: Run Ren'Py.
-        assert(false);
-    } else
-        gPath = buildPath(baseTlPath, options.debugLanguageTemplate);
+    // Run Ren'Py (or don't run, depending on options).
+    string renpy = `renpy`; // Search through $PATH if not specified explicitly.
+    ri.GenerationResult gen;
+    if (!options.debugLanguageTemplate.empty)
+        gen.path = buildPath(baseTlPath, options.debugLanguageTemplate);
+    else {
+        if (!options.renpyPath.empty)
+            renpy = ri.locateRenpyInSdk(options.renpyPath);
+        gen = ri.generateTranslations(renpy, projectPath);
+    }
 
+    // Collect existing (old) translations.
     const uLangPacks = taskPool.amap!_collectUserLangPack(
         zip(repeat(baseTlPath), options.languages),
         1,
     );
 
-    if (options.debugLanguageTemplate.empty) {
-        // TODO: Wait for Ren'Py to finish.
-        assert(false);
-    }
+    // Wait for Ren'Py to finish.
+    if (options.debugLanguageTemplate.empty)
+        if (const ret = gen.pid.wait())
+            throw new Exception(text('`', renpy, "` terminated with code ", ret));
 
-    const gLangPack = lp.collect!(tlg.parseFile)(gPath);
+    // Collect the newly generated translation.
+    const gLangPack = lp.collect!(tlg.parseFile)(gen.path);
 
+    // Delete it immediately to avoid leaving garbage if something goes wrong.
+    stdf.rmdirRecurse(gen.path);
+
+    // Merge translations.
     const mLangPacks = taskPool.amap!_mergeLangPacks(
         zip(uLangPacks, repeat(gLangPack)),
         1,
     );
 
+    // Write them back.
     const targetPath = options.outputDir; // TODO.
     auto wls = taskPool.workerLocalStorage(appender(uninitializedArray!(char[ ])(32 << 10)));
     foreach (z; parallel(zip(options.languages, uLangPacks, mLangPacks), 1)) {
@@ -74,8 +91,9 @@ int _run(const po.ProgramOptions options) @system {
         const mLangPack = z[2];
         auto app = &wls.get();
         foreach (ref kv; mLangPack.files.byKeyValue()) {
+            const uDecls = uLangPack.files.get(kv.key, tlu.Declarations.init);
             app.clear();
-            tlm.emit(*app, kv.value, uLangPack.files[kv.key], gLangPack.files[kv.key], lang);
+            tlm.emit(*app, kv.value, uDecls, gLangPack.files[kv.key], lang);
             const filename = buildPath(targetPath, lang, kv.key);
             stdf.mkdirRecurse(dirName(filename));
             stdf.write(filename, app.data);
