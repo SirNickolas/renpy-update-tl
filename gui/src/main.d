@@ -1,5 +1,6 @@
 import dlangui;
 
+import std.conv: to;
 import std.typecons: Tuple;
 
 private:
@@ -51,6 +52,63 @@ Tuple!(string, string[ ]) _collectLangs2(string path) {
     }
 }
 
+string _locateCliTool() @safe {
+    import std.file: FileException, isFile, thisExePath;
+    import std.path: buildPath, dirName;
+
+    version (Posix)
+        enum filename = `renpy-update-tl`;
+    else
+        enum filename = `renpy-update-tl.exe`;
+    const thisDir = dirName(thisExePath());
+    const s = buildPath(thisDir, filename);
+    try
+        if (isFile(s))
+            return s;
+    catch (FileException) { }
+    debug {
+        // Look in the parent directory as well.
+        const s1 = buildPath(dirName(thisDir), filename);
+        try
+            if (isFile(s1))
+                return s1;
+        catch (FileException) { }
+    }
+    return filename; // Search through $PATH.
+}
+
+auto _runCliTool(
+    string renpySdkPath,
+    string projectPath,
+    const(string)[ ] langs,
+) @safe {
+    import std.process: Config, execute;
+
+    const string[4] args = [_locateCliTool(), `--renpy`, renpySdkPath, projectPath];
+    return execute(args[ ] ~ langs, null, Config.suppressConsole);
+}
+
+public void _runCliTool(
+    string renpySdkPath,
+    string projectPath,
+    immutable(string)[ ] langs,
+    uint projectNumber,
+    shared _MainWidget mainWidget,
+) {
+    try {
+        const result = _runCliTool(renpySdkPath, projectPath, langs);
+        auto w = cast()mainWidget;
+        w.executeInUiThread({
+            w.finishWork(!result.status, result.output, projectNumber);
+        });
+    } catch (Exception e) {
+        auto w = cast()mainWidget;
+        w.executeInUiThread({
+            w.finishWork(false, e.msg, projectNumber);
+        });
+    }
+}
+
 Parent _add(Parent: Widget, Children...)(Parent parent, Children children) {
     static foreach (child; children)
         parent.addChild(child);
@@ -67,6 +125,7 @@ private:
     Widget _btnSelectRenpy, _edlnRenpy, _edlnProject;
     WidgetGroup _ltLangs;
     Widget _btnUpdate;
+    LogWidget _log;
     int _existingLangs;
     uint _projectNumber;
 
@@ -143,7 +202,6 @@ private:
     }
 
     void _onRenpySelected(Dialog dlg, const Action result) {
-        import std.conv: to;
         import dlangui.dialogs.filedlg: FileDialog;
 
         if (result.id != ACTION_OPEN_DIRECTORY.id)
@@ -152,7 +210,6 @@ private:
     }
 
     void _onProjectSelected(Dialog dlg, const Action result) {
-        import std.conv: to;
         import std.file: FileException;
         import dlangui.dialogs.filedlg: FileDialog;
 
@@ -198,8 +255,6 @@ private:
     }
 
     bool _onBtnSelectClick(Widget btn) {
-        import std.conv: to;
-
         const renpy = btn is _btnSelectRenpy;
         _showDirectoryDialog(
             UIString.fromRaw(renpy ? "Select Ren'Py SDK directory"d : "Select project directory"d),
@@ -209,10 +264,66 @@ private:
         return true;
     }
 
-    public this(Window window) {
-        _window = window;
+    bool _onBtnUpdateClick(Widget btn) {
+        import std.exception: assumeUnique;
+        import std.parallelism: task, taskPool;
+        import std.range: iota, stride;
 
+        if (!btn.enabled)
+            return true; // DLangUI allows to click a disabled button with keyboard (?!).
+
+        const n = _ltLangs.childCount;
+        assert(n & 0b1);
+        auto langs = new string[n >> 1];
+        size_t langsCount = 0;
+        foreach (i; iota(1, n).stride(2)) {
+            if (!_ltLangs.child(i - 1).checked)
+                continue;
+            const lang = _ltLangs.child(i).text.to!string();
+            if (!_isValidLang(lang))
+                continue;
+            langs[langsCount++] = lang;
+        }
+        if (!langsCount)
+            return true;
+
+        foreach (i; 0 .. n)
+            _ltLangs.child(i).enabled = false;
+        btn.enabled = false;
+        _log.appendText("Wait a few seconds, please...\n"d);
+        taskPool.put(task!_runCliTool(
+            _edlnRenpy.text.to!string(),
+            _edlnProject.text.to!string(),
+            assumeUnique(langs[0 .. langsCount]),
+            _projectNumber,
+            cast(shared)this,
+        ));
+        return true;
+    }
+
+    public void finishWork(bool ok, const(char)[ ] output, uint projectNumber) {
+        import std.range: empty, iota, stride;
+
+        if (!output.empty) {
+            _log.appendText(output.to!dstring());
+            if (output[$ - 1] != '\n')
+                _log.appendText("\n"d);
+        }
+        _log.appendText(ok ? "Done.\n\n"d : "Failed.\n\n"d);
+        if (projectNumber != _projectNumber)
+            return;
+
+        const n = _ltLangs.childCount;
+        assert(n & 0b1);
+        foreach (i; iota(n).stride(2))
+            _ltLangs.child(i).enabled = true; // A checkbox or the button.
+        _btnUpdate.enabled = true;
+        _existingLangs = n >> 1;
+    }
+
+    public this(Window window) {
         // Properties:
+        _window = window;
         margins = 8;
         layoutHeight = FILL_PARENT;
 
@@ -271,11 +382,11 @@ private:
             ._add(_btnUpdate.enabled(false).text("Update"d))
         );
 
-        auto log = new LogWidget;
-        log.vscrollbarMode = ScrollBarMode.Auto;
-        log.hscrollbarMode = ScrollBarMode.Auto;
+        _log = new LogWidget;
+        _log.vscrollbarMode = ScrollBarMode.Auto;
+        _log.hscrollbarMode = ScrollBarMode.Auto;
         addChild(
-            log.layoutHeight(FILL_PARENT)
+            _log.layoutHeight(FILL_PARENT)
         );
 
         // Signals:
@@ -283,10 +394,15 @@ private:
         btnSelectProject.click = &_onBtnSelectClick;
         chkbxEng.click = &_onChkbxLangClick;
         chkbxChn.click = &_onChkbxLangClick;
+        _btnUpdate.click = &_onBtnUpdateClick;
     }
 }
 
 extern(C) int UIAppMain(string[ ] args) {
+    import std.parallelism: defaultPoolThreads, totalCPUs;
+
+    defaultPoolThreads = totalCPUs;
+
     embeddedResourceList.addResources(embedResourcesFromList!`resources.list`());
     enum height = 280;
     Window window = Platform.instance.createWindow(
