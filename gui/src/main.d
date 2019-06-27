@@ -1,8 +1,55 @@
 import dlangui;
 
+import std.typecons: Tuple;
+
 private:
 
 extern(C) __gshared string[ ] rt_options = [`gcopt=gc:precise cleanup:none`];
+
+bool _isValidLang(const(char)[ ] name) nothrow pure @safe @nogc {
+    import std.algorithm.searching: all;
+    import std.ascii: isAlpha, isAlphaNum;
+    import std.range: empty;
+    import std.utf: byCodeUnit;
+
+    if (name.empty || name == "None" || (!isAlpha(name[0]) && name[0] != '_'))
+        return false;
+    return name[1 .. $].byCodeUnit().all!(c => isAlphaNum(c) || c == '_');
+}
+
+string[ ] _collectLangs(const(char)[ ] path) {
+    import std.algorithm.iteration: cache, filter, map;
+    import std.algorithm.sorting: sort;
+    import std.array: array;
+    import std.file: SpanMode, dirEntries;
+    import std.path: baseName, buildPath;
+    import std.typecons: tuple;
+
+    return
+        dirEntries(buildPath(path, `game/tl`), SpanMode.shallow)
+        .map!(e => tuple(baseName(e.name), e))
+        .cache()
+        .filter!(t => _isValidLang(t[0]) && t[1].isDir)
+        .map!q{a[0]}
+        .array()
+        .sort()
+        .release();
+}
+
+Tuple!(string, string[ ]) _collectLangs2(string path) {
+    import std.file: FileException;
+    import std.path: baseName, dirName;
+    import std.typecons: tuple;
+
+    try
+        return tuple(path, _collectLangs(path));
+    catch (FileException e) {
+        if (baseName(path) != `game`)
+            throw e;
+        path = dirName(path);
+        return tuple(path, _collectLangs(path));
+    }
+}
 
 Parent _add(Parent: Widget, Children...)(Parent parent, Children children) {
     static foreach (child; children)
@@ -14,10 +61,14 @@ enum _langWidth = 170;
 
 final class _MainWidget: VerticalLayout {
 private:
+    import dlangui.dialogs.dialog: Dialog;
+
     Window _window;
     Widget _btnSelectRenpy, _edlnRenpy, _edlnProject;
     WidgetGroup _ltLangs;
-    int _existingLangs = 2;
+    Widget _btnUpdate;
+    int _existingLangs;
+    uint _projectNumber;
 
     TableLayout _createLtLangs() {
         return new TableLayout().colCount(2);
@@ -28,27 +79,6 @@ private:
         grpbx.removeChild(0);
         _ltLangs = ltNew;
         grpbx.addChild(ltNew);
-    }
-
-    bool _onBtnSelectClick(Widget btn) {
-        import std.conv: to;
-        // import std.stdio;
-        import dlangui.dialogs.dialog: Dialog;
-        import dlangui.dialogs.filedlg;
-
-        auto dlg = new FileDialog(
-            UIString.fromRaw("Select directory"d),
-            _window,
-            null,
-            FileDialogFlag.SelectDirectory,
-        );
-        dlg.dialogResult = (Dialog _, const Action result) {
-            if (result.id != ACTION_OPEN_DIRECTORY.id)
-                return;
-            (btn is _btnSelectRenpy ? _edlnRenpy : _edlnProject).text = dlg.path.to!dstring();
-        };
-        dlg.show();
-        return true;
     }
 
     bool _onChkbxLangClick(Widget chkbx) {
@@ -70,6 +100,12 @@ private:
         return true;
     }
 
+    EditLine _createEdlnLang() {
+        auto edln = new EditLine;
+        edln.layoutWidth = _langWidth;
+        return edln;
+    }
+
     bool _onBtnAddLangClick(Widget btn) {
         auto chkbx = new CheckBox;
         chkbx.click = &_onChkbxLangClick;
@@ -78,8 +114,7 @@ private:
             chkbx
             .checked(true)
         ,
-            new EditLine()
-            .layoutWidth(_langWidth)
+            _createEdlnLang()
         ,
             _ltLangs.removeChild(_ltLangs.childCount - 1) // The button itself.
         );
@@ -92,6 +127,86 @@ private:
         btn.tooltipText = "Add a new language"d;
         btn.click = &_onBtnAddLangClick;
         return btn;
+    }
+
+    void _showDirectoryDialog(
+        UIString caption,
+        string path,
+        void delegate(Dialog, const Action) handler,
+    ) {
+        import dlangui.dialogs.filedlg;
+
+        auto dlg = new FileDialog(caption, _window, null, FileDialogFlag.SelectDirectory);
+        dlg.path = path;
+        dlg.dialogResult = handler;
+        dlg.show();
+    }
+
+    void _onRenpySelected(Dialog dlg, const Action result) {
+        import std.conv: to;
+        import dlangui.dialogs.filedlg: FileDialog;
+
+        if (result.id != ACTION_OPEN_DIRECTORY.id)
+            return;
+        _edlnRenpy.text = (cast(FileDialog)dlg).path.to!dstring();
+    }
+
+    void _onProjectSelected(Dialog dlg, const Action result) {
+        import std.conv: to;
+        import std.file: FileException;
+        import dlangui.dialogs.filedlg: FileDialog;
+
+        if (result.id != ACTION_OPEN_DIRECTORY.id)
+            return;
+
+        string path = (cast(FileDialog)dlg).path;
+        string[ ] langs;
+        try {
+            auto t = _collectLangs2(path);
+            path = t[0];
+            langs = t[1];
+        } catch (FileException) {
+            _window.showMessageBox(
+                UIString.fromRaw("Error"d),
+                UIString.fromRaw(
+                    `"`d ~ path.to!dstring() ~ `" doesn’t look like a Ren'Py project directory.`d,
+                ),
+            );
+            return;
+        }
+
+        _edlnProject.text = path.to!dstring();
+        _existingLangs = cast(int)langs.length;
+        _projectNumber++;
+        auto ltNew = _createLtLangs();
+        foreach (lang; langs) {
+            auto chkbx = new CheckBox;
+            chkbx.click = &_onChkbxLangClick;
+            ltNew
+            ._add(
+                new CheckBox()
+                .checked(true)
+            ,
+                _createEdlnLang()
+                .enabled(false)
+                .text(lang.to!dstring())
+            );
+        }
+        ltNew.addChild(_createBtnAddLang());
+        _replaceLtLangs(ltNew);
+        _btnUpdate.enabled = true;
+    }
+
+    bool _onBtnSelectClick(Widget btn) {
+        import std.conv: to;
+
+        const renpy = btn is _btnSelectRenpy;
+        _showDirectoryDialog(
+            UIString.fromRaw(renpy ? "Select Ren'Py SDK directory"d : "Select project directory"d),
+            (renpy ? _edlnRenpy : _edlnProject).text.to!string(),
+            renpy ? &_onRenpySelected : &_onProjectSelected,
+        );
+        return true;
     }
 
     public this(Window window) {
@@ -145,47 +260,22 @@ private:
                 new GroupBox(null, "Languages"d)
                 ._add(
                     ltLangs
-                    ._add(
-                        chkbxEng
-                        .checked(true)
-                    ,
-                        new EditLine()
-                        .enabled(false)
-                        .layoutWidth(_langWidth)
-                        .text("english"d)
-                    )
-                    ._add(
-                        chkbxChn
-                        .checked(true)
-                    ,
-                        new EditLine()
-                        .enabled(false)
-                        .layoutWidth(_langWidth)
-                        .text("chinese"d)
-                    )
-                    ._add(_createBtnAddLang)
+                    ._add(_createBtnAddLang().enabled(false))
                 )
             )
         );
 
+        _btnUpdate = new Button;
         addChild(
             new HorizontalLayout()
-            ._add(
-                new Button()
-                .text("Update"d)
-            )
+            ._add(_btnUpdate.enabled(false).text("Update"d))
         );
 
         auto log = new LogWidget;
         log.vscrollbarMode = ScrollBarMode.Auto;
         log.hscrollbarMode = ScrollBarMode.Auto;
         addChild(
-            log
-            .layoutHeight(FILL_PARENT)
-            .text(
-                "Wait a few seconds, please...\n1...\n2...\n3...\nA few more...\n"d ~
-                "Almost done...\nJust a moment...\nDone."d
-            )
+            log.layoutHeight(FILL_PARENT)
         );
 
         // Signals:
