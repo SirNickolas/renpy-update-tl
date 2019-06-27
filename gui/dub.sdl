@@ -10,4 +10,5 @@ dependency "dlangui" version="~>0.9.182"
 
 subConfiguration "dlangui" "minimal"
 
+stringImportPaths "views" "../views"
 targetName "renpy-update-tl-gui"

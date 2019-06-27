@@ -17,6 +17,7 @@ public struct ProgramOptions {
     string renpyPath;
     string outputDir;
     uint jobs;
+    bool versionRequested;
     string debugLanguageTemplate;
 }
 
@@ -24,7 +25,7 @@ auto _parseOptions(ref ProgramOptions o, ref string[ ] args) @system {
     import std.getopt;
 
     return getopt(args,
-        config.caseSensitive, // config.bundling,
+        config.caseSensitive, config.bundling,
 
         "renpy",
             "Path to Ren'Py SDK.",
@@ -38,6 +39,9 @@ auto _parseOptions(ref ProgramOptions o, ref string[ ] args) @system {
         "assume-fresh",
             "Bypass Ren'Py invocation (debug option).",
             &o.debugLanguageTemplate,
+        "V|version",
+            "Print version and exit.",
+            &o.versionRequested,
     );
 }
 
@@ -99,12 +103,18 @@ public alias ParseResult = SumType!(ProgramOptions, ParseError, HelpRequested);
 public ParseResult parse(ref string[ ] args) @system {
     import std.getopt;
     import std.stdio;
+    import version_;
 
     ProgramOptions o;
     try {
         auto info = _parseOptions(o, args);
         if (info.helpWanted) {
             defaultGetoptPrinter(_usage, info.options);
+            return ParseResult(HelpRequested());
+        }
+        if (o.versionRequested) {
+            enum s = 'v' ~ programVersion ~ '\n';
+            write(s);
             return ParseResult(HelpRequested());
         }
         if (args.length < 3) {

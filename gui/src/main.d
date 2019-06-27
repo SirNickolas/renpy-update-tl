@@ -400,13 +400,15 @@ private:
 
 extern(C) int UIAppMain(string[ ] args) {
     import std.parallelism: defaultPoolThreads, totalCPUs;
+    import version_;
 
     defaultPoolThreads = totalCPUs;
 
     embeddedResourceList.addResources(embedResourcesFromList!`resources.list`());
+    enum title = "Ren'Py translation updater (v"d ~ programVersion.to!dstring() ~ ")"d;
     enum height = 280;
     Window window = Platform.instance.createWindow(
-        "Ren'Py translation updater"d,
+        title,
         null,
         WindowFlag.Resizable,
         cast(int)(height * 1.618),
