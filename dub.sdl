@@ -1,5 +1,6 @@
 name        "renpy-update-tl"
 description "Update Ren'Py translation files after modifying the script."
+homepage    "https://github.com/SirNickolas/renpy-update-tl"
 authors     "Nickolay Bukreyev"
 copyright   "Copyright © 2019, Nickolay Bukreyev"
 license     "MIT"
@@ -7,5 +8,6 @@ license     "MIT"
 toolchainRequirements frontend=">=2.078"
 
 subPackage "./gui"
+subPackage "./tk"
 
 dependency "sumtype" version="~>0.8.9"

@@ -1,0 +1,9 @@
+/library/
+/renpy-update-tl-gui
+/*.exe
+/*.a
+/*.lib
+/*.so
+/*.dylib
+/*.dll
+/*.lst
