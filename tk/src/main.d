@@ -3,10 +3,10 @@ private:
 extern(C) __gshared string[ ] rt_options = [`gcopt=gc:precise cleanup:none`];
 
 version (Posix)
-    void main() {
+    int main() {
         import application;
 
-        new Application().run();
+        return run();
     }
 else {
 nothrow:
@@ -16,7 +16,7 @@ nothrow:
         import core.sys.windows.winuser;
 
         MessageBoxW(null, msg, title, MB_OK | MB_ICONEXCLAMATION);
-        return 1;
+        return 3;
     }
 
     int _reportFatalError(const(char)[ ] msg, const(wchar)* title) @nogc {
@@ -35,7 +35,7 @@ nothrow:
         import std.array: array;
         import std.range: chain, only;
         import std.utf: byWchar;
-        import application;
+        import application: run;
 
         try
             if (!Runtime.initialize())
@@ -46,11 +46,10 @@ nothrow:
         catch (Throwable th)
             return _reportFatalError(th.msg, "Fatal error: cannot initialize druntime");
 
-        int ret = 0;
+        int ret = 3;
         try
-            new Application().run();
+            ret = run();
         catch (Throwable th) {
-            ret = 1;
             string msg;
             try
                 msg = th.toString(); // Attempt to get the stack trace.
