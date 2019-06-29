@@ -64,5 +64,25 @@ final class Controller: IViewListener {
         view.focusLang(No.checkbox, _model.langs.length - 1);
     }
 
-    void onBtnUpdateClick(IView view) { }
+    private immutable(string)[ ] _getEnabledLangNames() const nothrow pure @safe {
+        import std.algorithm.iteration;
+        import std.array: array;
+        import std.range: tee;
+
+        return
+            _model.langs
+            .filter!q{a.enabled}
+            .map!q{cast(immutable)a.name}
+            .array();
+    }
+
+    void onBtnUpdateClick(IView view) {
+        _model.removeInvalidLangs();
+        const langNames = _getEnabledLangNames();
+        if (!langNames.empty) {
+            _model.busy = true;
+            // TODO: Process `langNames`.
+        }
+        view.update(*_model);
+    }
 }

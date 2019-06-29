@@ -51,6 +51,16 @@ nothrow @safe:
         _langs = _langs.remove(index).assumeSafeAppend();
     }
 
+    void removeInvalidLangs() @trusted {
+        import std.algorithm.mutation;
+        import mvc.m.lang;
+
+        _langs =
+            _langs
+            .remove!(lang => lang.enabled && !isValidLangName(lang.name))
+            .assumeSafeAppend();
+    }
+
     @property uint projectNumber() const pure @nogc {
         return _projectNumber;
     }
