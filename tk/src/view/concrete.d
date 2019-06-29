@@ -1,4 +1,4 @@
-module application;
+module view.concrete;
 
 import std.typecons: Tuple, tuple;
 
@@ -7,29 +7,14 @@ import tkd.tkdapplication;
 import tkd.widget.widget: Widget;
 
 import model.data: Lang, Model;
-import view: Handler, IView;
+import view.iface;
 
-private template _declareHandler(Args...) {
-    Handler!Args dg;
-
-    static if (!Args.length)
-        void tk(CommandArgs _) {
-            if (dg !is null)
-                dg();
-        }
-}
-
-private template _declareHandler(string name, Args...) {
-    mixin(`
-        mixin _declareHandler!Args _hnd` ~ name ~ `;
-
-        // Implement properties from IView.
-        public @property typeof(this) on` ~ name ~ `(Handler!Args h) nothrow pure @safe @nogc {
-            _hnd` ~ name ~ `.dg = h;
-            return this;
-        }
-    `);
-}
+private enum _declareHandler(string name) = `
+    void _hnd` ~ name ~ `(CommandArgs _) nothrow {
+        if (_listener !is null)
+            _listener.on` ~ name ~ `(this);
+    }
+`;
 
 private void _setReadOnlyValue(Entry entry, string value) {
     string[1] readOnly = [State.readonly], active = [State.active];
@@ -39,7 +24,6 @@ private void _setReadOnlyValue(Entry entry, string value) {
         .setState(readOnly[ ]);
 }
 
-
 final class Application: TkdApplication, IView {
 private:
     Entry _entRenpySDK, _entProject;
@@ -47,16 +31,19 @@ private:
     Widget[ ] _wLangsChildren;
     Button _btnUpdate;
     Text _txtLog;
-
-    mixin _declareHandler!q{BtnRenpySDKClick};
-    mixin _declareHandler!q{BtnProjectClick};
-    mixin _declareHandler!q{BtnAddLangClick};
-    mixin _declareHandler!q{BtnUpdateClick};
-    mixin _declareHandler!(q{LangCheck}, size_t, bool);
+    IViewListener _listener;
 
     // TODO: Write invariant.
 
-    void _hndLangCheckExec(Element chkbx, bool checked) nothrow @safe {
+    /+
+        Event handlers.
+    +/
+    mixin(_declareHandler!q{BtnRenpySDKClick});
+    mixin(_declareHandler!q{BtnProjectClick});
+    mixin(_declareHandler!q{BtnAddLangClick});
+    mixin(_declareHandler!q{BtnUpdateClick});
+
+    void _hndLangCheckExec(Element chkbx, bool checked) nothrow {
         import std.algorithm.searching: find;
         import std.range: enumerate, stride;
 
@@ -67,14 +54,17 @@ private:
             .enumerate()
             .find!q{a.value is b}(chkbx);
         assert(!tail.empty, "Cannot find the checkbox that has just been clicked");
-        _hndLangCheck.dg(tail.front.index, checked);
+        _listener.onLangCheck(this, tail.front.index, checked);
     }
 
-    void _hndLangCheckTk(CommandArgs args) {
-        if (_hndLangCheck.dg !is null)
+    void _hndLangCheck(CommandArgs args) {
+        if (_listener !is null)
             _hndLangCheckExec(args.element, (cast(CheckButton)args.element).isChecked());
     }
 
+    /+
+        UI generation.
+    +/
     void _configureWindow() {
         import version_;
 
@@ -110,11 +100,11 @@ private:
 
         auto img = new EmbeddedPng!`img/document-open.png`();
         auto t = _createPathControl(new Frame(wrapper).grid(1, 0, 0, 0, 1, 1, "ew"), img);
-        t[0].setCommand(&_hndBtnRenpySDKClick.tk);
+        t[0].setCommand(&_hndBtnRenpySDKClick);
         _entRenpySDK = t[1];
 
         t = _createPathControl(new Frame(wrapper).grid(1, 1, 0, 0, 1, 1, "ew"), img);
-        t[0].setCommand(&_hndBtnProjectClick.tk);
+        t[0].setCommand(&_hndBtnProjectClick);
         _entProject = t[1];
     }
 
@@ -131,7 +121,7 @@ private:
             // Checkbox.
             auto chkbx =
                 new CheckButton(_lfrLangs)
-                .setCommand(&_hndLangCheckTk)
+                .setCommand(&_hndLangCheck)
                 .grid(0, cast(int)i);
             if (lang.enabled)
                 chkbx.check();
@@ -153,7 +143,7 @@ private:
         assert(j == _wLangsChildren.length - 1);
         auto btn =
             new Button(_lfrLangs, new EmbeddedPng!`img/plus-10.png`())
-            .setCommand(&_hndBtnAddLangClick.tk)
+            .setCommand(&_hndBtnAddLangClick)
             .grid(0, j >> 1);
         _wLangsChildren[j] = btn;
         if (busy)
@@ -171,7 +161,7 @@ private:
     void _createOutput() {
         _btnUpdate =
             new Button("Update")
-            .setCommand(&_hndBtnUpdateClick.tk)
+            .setCommand(&_hndBtnUpdateClick)
             .pack(0, 0, GeometrySide.top, GeometryFill.none, AnchorPosition.west);
 
         _txtLog =
@@ -186,6 +176,14 @@ private:
         _createPathControls();
         _createLangs();
         _createOutput();
+    }
+
+    /+
+        UI updating.
+    +/
+    public typeof(this) setListener(IViewListener listener) nothrow pure @safe @nogc {
+        _listener = listener;
+        return this;
     }
 
     public void update(ref const Model model) {

@@ -3,10 +3,10 @@ module main_1;
 int run() {
     import std.typecons: scoped;
 
-    import application;
+    import controller;
     import model.data;
+    import view.concrete;
 
-    auto app = scoped!Application();
     Model md = {
         null,
         null,
@@ -14,6 +14,9 @@ int run() {
         0,
         false,
     };
+    auto app = scoped!Application();
+    auto ctrl = scoped!Controller(&md);
+    app.setListener(ctrl);
     app.update(md);
     app.run();
     return 0;
