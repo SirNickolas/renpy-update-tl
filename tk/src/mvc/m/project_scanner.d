@@ -1,4 +1,4 @@
-module model.project_scanner;
+module mvc.m.project_scanner;
 
 private @safe:
 
@@ -10,7 +10,7 @@ string[ ] _collectLangs(const(char)[ ] path) @trusted {
     import std.path: baseName, buildPath;
     import std.typecons: tuple;
 
-    import model.lang: isValidLangName;
+    import mvc.m.lang: isValidLangName;
 
     return
         dirEntries(buildPath(path, `game/tl`), SpanMode.shallow)
@@ -28,7 +28,7 @@ public struct ProjectScanResult {
     string[ ] langs;
 
     bool opCast(B: bool)() const nothrow pure @nogc {
-        import std.range: empty;
+        import std.range.primitives: empty;
 
         return !path.empty;
     }

@@ -1,30 +1,40 @@
-module view.concrete;
+module mvc.v.concrete;
 
-import std.typecons: Tuple, tuple;
+import std.typecons: Flag, Yes, No, Tuple, tuple;
 
 import tkd.element.element: Element;
 import tkd.tkdapplication;
 import tkd.widget.widget: Widget;
 
-import model.data: Lang, Model;
-import view.iface;
+import mvc.m.data: Lang, Model;
+import mvc.v.iface;
 
-private enum _declareHandler(string name) = `
-    void _hnd` ~ name ~ `(CommandArgs _) nothrow {
+private:
+
+enum _declareHandler(string name) = `
+    void _hnd` ~ name ~ `(CommandArgs _) {
         if (_listener !is null)
             _listener.on` ~ name ~ `(this);
     }
 `;
 
-private void _setReadOnlyValue(Entry entry, string value) {
-    string[1] readOnly = [State.readonly], active = [State.active];
+Button _newButton(Btn: Element = Button, Args...)(Args args) {
+    import std.functional: forward;
+
+    return new Btn(forward!args).bind("<Return>", (CommandArgs args) {
+        (cast(Btn)args.element).invokeCommand();
+    });
+}
+
+void _setReadOnlyValue(Entry entry, string value) {
+    string[1] readOnly = [State.readonly];
     entry
-        .setState(active[ ])
+        .removeState(readOnly[ ])
         .setValue(value)
         .setState(readOnly[ ]);
 }
 
-final class Application: TkdApplication, IView {
+public final class Application: TkdApplication, IView {
 private:
     Entry _entRenpySDK, _entProject;
     LabelFrame _lfrLangs;
@@ -43,23 +53,36 @@ private:
     mixin(_declareHandler!q{BtnAddLangClick});
     mixin(_declareHandler!q{BtnUpdateClick});
 
-    void _hndLangCheckExec(Element chkbx, bool checked) nothrow {
+    size_t _getLangChildIndex(Flag!q{checkbox} checkbox, const Element e) nothrow pure @safe @nogc {
         import std.algorithm.searching: find;
         import std.range: enumerate, stride;
 
-        // Perform a linear search through checkboxes (even indices).
-        auto tail =
-            _wLangsChildren[0 .. $ - 1]
+        // Perform a linear search through checkboxes (even indices) or entries (odd indices).
+        return
+            _wLangsChildren[1 - checkbox .. $ - 1]
             .stride(2)
             .enumerate()
-            .find!q{a.value is b}(chkbx);
-        assert(!tail.empty, "Cannot find the checkbox that has just been clicked");
-        _listener.onLangCheck(this, tail.front.index, checked);
+            .find!q{a.value is b}(e)
+            .front
+            .index;
     }
 
     void _hndLangCheck(CommandArgs args) {
         if (_listener !is null)
-            _hndLangCheckExec(args.element, (cast(CheckButton)args.element).isChecked());
+            _listener.onLangCheck(
+                this,
+                _getLangChildIndex(Yes.checkbox, args.element),
+                (cast(CheckButton)args.element).isChecked(),
+            );
+    }
+
+    void _hndEntLangOut(CommandArgs args) {
+        if (_listener !is null)
+            _listener.onEntLangFocusOut(
+                this,
+                _getLangChildIndex(No.checkbox, args.element),
+                (cast(Entry)args.element).getValue(),
+            );
     }
 
     /+
@@ -78,7 +101,7 @@ private:
     static Tuple!(Button, Entry) _createPathControl(Widget parent, Image img) {
         string[1] readOnly = [State.readonly];
         auto btn =
-            new Button(parent, img)
+            _newButton(parent, img)
             .pack(0, 0, GeometrySide.left);
         auto ent =
             new Entry(parent)
@@ -108,6 +131,22 @@ private:
         _entProject = t[1];
     }
 
+    void _configureLang(ref const Lang lang, bool busy, CheckButton chkbx, Entry ent) {
+        string[1] readOnly = [State.readonly], disabled = [State.disabled];
+        if (lang.enabled)
+            chkbx.check();
+        else
+            chkbx.unCheck();
+        if (busy)
+            chkbx.setState(disabled[ ]);
+        else
+            chkbx.removeState(disabled[ ]);
+        ent.removeState(readOnly[ ]);
+        ent.setValue(lang.name);
+        if (busy || !lang.enabled || !lang.ephemeral)
+            ent.setState(readOnly[ ]);
+    }
+
     void _createLangsChildren(const(Lang)[ ] spec, bool busy) {
         import std.algorithm.iteration: each;
 
@@ -115,39 +154,53 @@ private:
         _wLangsChildren.length = spec.length << 1 | 0x1;
         _wLangsChildren.assumeSafeAppend();
 
-        string[1] readOnly = [State.readonly], disabled = [State.disabled];
         int j = 0;
-        foreach (i, lang; spec) {
+        foreach (i, ref lang; spec) {
             // Checkbox.
             auto chkbx =
                 new CheckButton(_lfrLangs)
                 .setCommand(&_hndLangCheck)
                 .grid(0, cast(int)i);
-            if (lang.enabled)
-                chkbx.check();
-            if (busy)
-                chkbx.setState(disabled[ ]);
             _wLangsChildren[j++] = chkbx;
 
             // Entry.
             auto ent =
                 new Entry(_lfrLangs)
+                .bind("<FocusOut>", &_hndEntLangOut)
                 .setValue(lang.name)
                 .grid(1, cast(int)i);
-            if (busy || !lang.ephemeral || !lang.enabled)
-                ent.setState(readOnly[ ]);
             _wLangsChildren[j++] = ent;
+
+            _configureLang(lang, busy, chkbx, ent);
         }
 
         // Button.
         assert(j == _wLangsChildren.length - 1);
         auto btn =
-            new Button(_lfrLangs, new EmbeddedPng!`img/plus-10.png`())
+            _newButton(_lfrLangs, new EmbeddedPng!`img/plus-10.png`())
             .setCommand(&_hndBtnAddLangClick)
             .grid(0, j >> 1);
         _wLangsChildren[j] = btn;
-        if (busy)
+        if (busy) {
+            string[1] disabled = [State.disabled];
             btn.setState(disabled[ ]);
+        }
+    }
+
+    void _updateLangsChildren(const(Lang)[ ] langs, bool busy) {
+        foreach (i, ref lang; langs)
+            _configureLang(
+                lang,
+                busy,
+                cast(CheckButton)_wLangsChildren[i << 1],
+                cast(Entry)_wLangsChildren[i << 1 | 0x1],
+            );
+
+        string[1] disabled = [State.disabled];
+        if (busy)
+            _wLangsChildren[$ - 1].setState(disabled[ ]);
+        else
+            _wLangsChildren[$ - 1].removeState(disabled[ ]);
     }
 
     void _createLangs() {
@@ -155,13 +208,16 @@ private:
             new LabelFrame("Languages")
             .pack(0, 0, GeometrySide.top, GeometryFill.none, AnchorPosition.west);
 
-        _createLangsChildren(null, false);
+        _createLangsChildren(null, true);
     }
 
     void _createOutput() {
+        string[1] disabled = [State.disabled];
+
         _btnUpdate =
-            new Button("Update")
+            _newButton("Update")
             .setCommand(&_hndBtnUpdateClick)
+            .setState(disabled[ ]) // TODO.
             .pack(0, 0, GeometrySide.top, GeometryFill.none, AnchorPosition.west);
 
         _txtLog =
@@ -189,8 +245,52 @@ private:
     public void update(ref const Model model) {
         _setReadOnlyValue(_entRenpySDK, model.renpySDKPath);
         _setReadOnlyValue(_entProject, model.projectPath);
-        _createLangsChildren(model.langs, model.busy);
-        string[2] states = [State.active, State.disabled];
-        _btnUpdate.setState(states[model.busy .. model.busy + 1]);
+        if (model.langs.length == _wLangsChildren.length >> 1)
+            _updateLangsChildren(model.langs, model.busy);
+        else
+            _createLangsChildren(model.langs, model.busy);
+        string[1] disabled = [State.disabled];
+        if (model.busy)
+            _btnUpdate.setState(disabled[ ]);
+        else
+            _btnUpdate.removeState(disabled[ ]);
+    }
+
+    public void focusLang(Flag!q{checkbox} checkbox, size_t index) {
+        _wLangsChildren[index << 1 | (1 - checkbox)].focus();
+    }
+
+    public string selectDirectory(string title, string initial) {
+        import std.file: getcwd;
+        import std.path: dirSeparator;
+        import std.range.primitives: empty;
+        import std.typecons: scoped;
+
+        auto dialog = scoped!DirectoryDialog(title);
+        dialog
+            .setInitialDirectory(!initial.empty ? initial : getcwd())
+            .setDirectoryMustExist(true)
+            .show();
+
+        const path = dialog.getResult();
+        static if (dirSeparator != `\`)
+            return path;
+        else {
+            import std.algorithm.iteration;
+            import std.array;
+            import std.utf;
+
+            return path.byCodeUnit().substitute!('/', '\\').array();
+        }
+    }
+
+    public void showWarning(string title, string text) {
+        import std.typecons: scoped;
+
+        auto dialog = scoped!MessageDialog(title);
+        dialog
+            .setIcon(MessageDialogIcon.warning)
+            .setMessage(text)
+            .show();
     }
 }

@@ -1,12 +1,14 @@
-module view.iface;
+module mvc.v.iface;
 
-import model.data: Model;
+import std.typecons: Flag;
+
+import mvc.m.data: Model;
 
 interface IViewListener {
-nothrow:
     void onBtnRenpySDKClick(IView);
     void onBtnProjectClick(IView);
     void onLangCheck(IView, size_t index, bool checked);
+    void onEntLangFocusOut(IView, size_t index, string text);
     void onBtnAddLangClick(IView);
     void onBtnUpdateClick(IView);
 }
@@ -14,4 +16,7 @@ nothrow:
 interface IView {
     IView setListener(IViewListener) @safe;
     void update(ref const Model model);
+    void focusLang(Flag!q{checkbox} checkbox, size_t index);
+    string selectDirectory(string title, string initial);
+    void showWarning(string title, string text);
 }

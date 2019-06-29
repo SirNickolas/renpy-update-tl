@@ -1,4 +1,4 @@
-module model.data;
+module mvc.m.data;
 
 struct Lang {
     bool enabled;
@@ -14,7 +14,7 @@ nothrow @safe:
         Lang[ ] _langs;
         uint _projectNumber;
     }
-    bool busy;
+    bool busy = true;
 
     @disable this(this);
 
@@ -24,7 +24,7 @@ nothrow @safe:
 
     bool trySetProjectPath(string newPath) {
         import std.algorithm;
-        import model.project_scanner;
+        import mvc.m.project_scanner;
 
         const result = scanProject(newPath);
         if (!result)
@@ -39,6 +39,16 @@ nothrow @safe:
 
     @property inout(Lang)[ ] langs() inout pure @nogc {
         return _langs;
+    }
+
+    void appendLang(Lang lang) pure {
+        _langs ~= lang;
+    }
+
+    void removeLang(size_t index) @trusted {
+        import std.algorithm.mutation;
+
+        _langs = _langs.remove(index).assumeSafeAppend();
     }
 
     @property uint projectNumber() const pure @nogc {
