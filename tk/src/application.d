@@ -2,11 +2,79 @@ module application;
 
 import std.typecons: Tuple, tuple;
 
+import tkd.element.element: Element;
 import tkd.tkdapplication;
 import tkd.widget.widget: Widget;
 
-final class Application: TkdApplication {
+import model.data: Lang, Model;
+import view: Handler, IView;
+
+private template _declareHandler(Args...) {
+    Handler!Args dg;
+
+    static if (!Args.length)
+        void tk(CommandArgs _) {
+            if (dg !is null)
+                dg();
+        }
+}
+
+private template _declareHandler(string name, Args...) {
+    mixin(`
+        mixin _declareHandler!Args _hnd` ~ name ~ `;
+
+        // Implement properties from IView.
+        public @property typeof(this) on` ~ name ~ `(Handler!Args h) nothrow pure @safe @nogc {
+            _hnd` ~ name ~ `.dg = h;
+            return this;
+        }
+    `);
+}
+
+private void _setReadOnlyValue(Entry entry, string value) {
+    string[1] readOnly = [State.readonly], active = [State.active];
+    entry
+        .setState(active[ ])
+        .setValue(value)
+        .setState(readOnly[ ]);
+}
+
+
+final class Application: TkdApplication, IView {
 private:
+    Entry _entRenpySDK, _entProject;
+    LabelFrame _lfrLangs;
+    Widget[ ] _wLangsChildren;
+    Button _btnUpdate;
+    Text _txtLog;
+
+    mixin _declareHandler!q{BtnRenpySDKClick};
+    mixin _declareHandler!q{BtnProjectClick};
+    mixin _declareHandler!q{BtnAddLangClick};
+    mixin _declareHandler!q{BtnUpdateClick};
+    mixin _declareHandler!(q{LangCheck}, size_t, bool);
+
+    // TODO: Write invariant.
+
+    void _hndLangCheckExec(Element chkbx, bool checked) nothrow @safe {
+        import std.algorithm.searching: find;
+        import std.range: enumerate, stride;
+
+        // Perform a linear search through checkboxes (even indices).
+        auto tail =
+            _wLangsChildren[0 .. $ - 1]
+            .stride(2)
+            .enumerate()
+            .find!q{a.value is b}(chkbx);
+        assert(!tail.empty, "Cannot find the checkbox that has just been clicked");
+        _hndLangCheck.dg(tail.front.index, checked);
+    }
+
+    void _hndLangCheckTk(CommandArgs args) {
+        if (_hndLangCheck.dg !is null)
+            _hndLangCheckExec(args.element, (cast(CheckButton)args.element).isChecked());
+    }
+
     void _configureWindow() {
         import version_;
 
@@ -29,7 +97,7 @@ private:
         return tuple(btn, ent);
     }
 
-    static void _createPathControls() {
+    void _createPathControls() {
         auto wrapper =
             new Frame()
             .configureGeometryColumn(1, 1)
@@ -41,39 +109,73 @@ private:
             .grid(0, 1, 0, 0, 1, 1, AnchorPosition.west);
 
         auto img = new EmbeddedPng!`img/document-open.png`();
-        _createPathControl(new Frame(wrapper).grid(1, 0, 0, 0, 1, 1, "ew"), img);
-        _createPathControl(new Frame(wrapper).grid(1, 1, 0, 0, 1, 1, "ew"), img);
+        auto t = _createPathControl(new Frame(wrapper).grid(1, 0, 0, 0, 1, 1, "ew"), img);
+        t[0].setCommand(&_hndBtnRenpySDKClick.tk);
+        _entRenpySDK = t[1];
+
+        t = _createPathControl(new Frame(wrapper).grid(1, 1, 0, 0, 1, 1, "ew"), img);
+        t[0].setCommand(&_hndBtnProjectClick.tk);
+        _entProject = t[1];
     }
 
-    static void _createLangs() {
-        auto lfr =
+    void _createLangsChildren(const(Lang)[ ] spec, bool busy) {
+        import std.algorithm.iteration: each;
+
+        _wLangsChildren.each!q{a.destroy()};
+        _wLangsChildren.length = spec.length << 1 | 0x1;
+        _wLangsChildren.assumeSafeAppend();
+
+        string[1] readOnly = [State.readonly], disabled = [State.disabled];
+        int j = 0;
+        foreach (i, lang; spec) {
+            // Checkbox.
+            auto chkbx =
+                new CheckButton(_lfrLangs)
+                .setCommand(&_hndLangCheckTk)
+                .grid(0, cast(int)i);
+            if (lang.enabled)
+                chkbx.check();
+            if (busy)
+                chkbx.setState(disabled[ ]);
+            _wLangsChildren[j++] = chkbx;
+
+            // Entry.
+            auto ent =
+                new Entry(_lfrLangs)
+                .setValue(lang.name)
+                .grid(1, cast(int)i);
+            if (busy || !lang.ephemeral || !lang.enabled)
+                ent.setState(readOnly[ ]);
+            _wLangsChildren[j++] = ent;
+        }
+
+        // Button.
+        assert(j == _wLangsChildren.length - 1);
+        auto btn =
+            new Button(_lfrLangs, new EmbeddedPng!`img/plus-10.png`())
+            .setCommand(&_hndBtnAddLangClick.tk)
+            .grid(0, j >> 1);
+        _wLangsChildren[j] = btn;
+        if (busy)
+            btn.setState(disabled[ ]);
+    }
+
+    void _createLangs() {
+        _lfrLangs =
             new LabelFrame("Languages")
             .pack(0, 0, GeometrySide.top, GeometryFill.none, AnchorPosition.west);
 
-        string[1] readOnly = [State.readonly];
-        new CheckButton(lfr)
-            .check()
-            .grid(0, 0);
-        new Entry(lfr)
-            .setValue("english")
-            .setState(readOnly[ ])
-            .grid(1, 0);
-        new CheckButton(lfr)
-            .check()
-            .grid(0, 1);
-        new Entry(lfr)
-            .setValue("chinese")
-            .setState(readOnly[ ])
-            .grid(1, 1);
-        new Button(lfr, new EmbeddedPng!`img/plus-10.png`())
-            .grid(0, 2);
+        _createLangsChildren(null, false);
     }
 
-    static void _createOutput() {
-        new Button("Update")
+    void _createOutput() {
+        _btnUpdate =
+            new Button("Update")
+            .setCommand(&_hndBtnUpdateClick.tk)
             .pack(0, 0, GeometrySide.top, GeometryFill.none, AnchorPosition.west);
 
-        new Text()
+        _txtLog =
+            new Text()
             .setUndoSupport(false)
             .setReadOnly(true)
             .pack(0, 0, GeometrySide.top, GeometryFill.both, AnchorPosition.center, true);
@@ -85,12 +187,12 @@ private:
         _createLangs();
         _createOutput();
     }
-}
 
-int run() {
-    import std.typecons;
-
-    auto app = scoped!Application();
-    app.run();
-    return 0;
+    public void update(ref const Model model) {
+        _setReadOnlyValue(_entRenpySDK, model.renpySDKPath);
+        _setReadOnlyValue(_entProject, model.projectPath);
+        _createLangsChildren(model.langs, model.busy);
+        string[2] states = [State.active, State.disabled];
+        _btnUpdate.setState(states[model.busy .. model.busy + 1]);
+    }
 }

@@ -4,7 +4,7 @@ extern(C) __gshared string[ ] rt_options = [`gcopt=gc:precise cleanup:none`];
 
 version (Posix)
     int main() {
-        import application;
+        import main_1;
 
         return run();
     }
@@ -35,7 +35,7 @@ nothrow:
         import std.array: array;
         import std.range: chain, only;
         import std.utf: byWchar;
-        import application: run;
+        import main_1: run;
 
         try
             if (!Runtime.initialize())
