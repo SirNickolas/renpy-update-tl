@@ -42,6 +42,8 @@ private:
     Button _btnUpdate;
     Text _txtLog;
     IViewListener _listener;
+    shared size_t _asyncCount;
+    shared void delegate(IView) @system[ ] _queued;
 
     // TODO: Write invariant.
 
@@ -292,5 +294,58 @@ private:
             .setIcon(MessageDialogIcon.warning)
             .setMessage(text)
             .show();
+    }
+
+    public void appendToLog(string text) {
+        _txtLog
+            .setReadOnly(false)
+            .appendText(text)
+            .setReadOnly(true)
+            .setYView(1.);
+    }
+
+    // TODO: Factor out to a separate class.
+    private void _asyncWatch(CommandArgs _) {
+        synchronized (this) {
+            size_t n = (cast()_queued).length;
+            if (n) {
+                size_t i = 0;
+                do {
+                    do {
+                        (cast()_queued)[i](this);
+                        (cast()_queued)[i++] = null;
+                    } while (i < n);
+                    n = (cast()_queued).length;
+                } while (i < n);
+                auto queued = cast()_queued;
+                queued.length = 0;
+                queued.assumeSafeAppend();
+                cast()_queued = queued;
+            }
+            if (cast()_asyncCount)
+                mainWindow.setIdleCommand(&_asyncWatch, 200);
+        }
+    }
+
+    public void startAsyncWatching() {
+        synchronized (this)
+            if ((cast()_asyncCount)++)
+                return;
+        mainWindow.setIdleCommand(&_asyncWatch, 200);
+    }
+
+    public void executeInMainThread(void delegate(IView) @system dg) {
+        synchronized (this) {
+            auto queued = (cast()_queued).assumeSafeAppend();
+            queued ~= dg;
+            cast()_queued = queued;
+        }
+    }
+
+    public void stopAsyncWatching() pure @nogc {
+        size_t n;
+        synchronized (this)
+            n = (cast()_asyncCount)--;
+        assert(n);
     }
 }

@@ -19,4 +19,8 @@ interface IView {
     void focusLang(Flag!q{checkbox} checkbox, size_t index);
     string selectDirectory(string title, string initial);
     void showWarning(string title, string text);
+    void appendToLog(string text);
+    void startAsyncWatching();
+    void executeInMainThread(void delegate(IView) @system);
+    void stopAsyncWatching();
 }
