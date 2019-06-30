@@ -8,8 +8,8 @@ struct Lang {
 
 struct Model {
 nothrow @safe:
-    string renpySDKPath;
     private {
+        string _renpySDKPath;
         string _projectPath;
         Lang[ ] _langs;
         uint _projectNumber;
@@ -18,14 +18,30 @@ nothrow @safe:
 
     @disable this(this);
 
+    @property string renpySDKPath() const pure @nogc {
+        return _renpySDKPath;
+    }
+
+    bool trySetRenpySDKPath(string newPath) {
+        import std.path: isValidPath;
+
+        if (!isValidPath(newPath))
+            return false;
+        _renpySDKPath = newPath;
+        return true;
+    }
+
     @property string projectPath() const pure @nogc {
         return _projectPath;
     }
 
     bool trySetProjectPath(string newPath) {
         import std.algorithm;
+        import std.path: isValidPath;
         import mvc.m.project_scanner;
 
+        if (!isValidPath(newPath))
+            return false;
         const result = scanProject(newPath);
         if (!result)
             return false;

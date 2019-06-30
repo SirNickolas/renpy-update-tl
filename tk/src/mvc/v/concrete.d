@@ -210,16 +210,13 @@ private:
             new LabelFrame("Languages")
             .pack(0, 0, GeometrySide.top, GeometryFill.none, AnchorPosition.west);
 
-        _createLangsChildren(null, true);
+        _createLangsChildren(null, false);
     }
 
     void _createOutput() {
-        string[1] disabled = [State.disabled];
-
         _btnUpdate =
             _newButton("Update")
             .setCommand(&_hndBtnUpdateClick)
-            .setState(disabled[ ]) // TODO.
             .pack(0, 0, GeometrySide.top, GeometryFill.none, AnchorPosition.west);
 
         auto fr =

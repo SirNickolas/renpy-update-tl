@@ -19,9 +19,8 @@ final class Controller: IViewListener {
 
     void onBtnRenpySDKClick(IView view) {
         const newPath = view.selectDirectory("Select Ren'Py SDK directory", _model.renpySDKPath);
-        if (newPath.empty)
+        if (newPath.empty || !_model.trySetRenpySDKPath(newPath))
             return;
-        _model.renpySDKPath = newPath;
         view.update(*_model);
     }
 
