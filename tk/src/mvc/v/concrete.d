@@ -222,11 +222,23 @@ private:
             .setState(disabled[ ]) // TODO.
             .pack(0, 0, GeometrySide.top, GeometryFill.none, AnchorPosition.west);
 
-        _txtLog =
-            new Text()
-            .setUndoSupport(false)
-            .setReadOnly(true)
+        auto fr =
+            new Frame()
             .pack(0, 0, GeometrySide.top, GeometryFill.both, AnchorPosition.center, true);
+
+        _txtLog =
+            new Text(fr)
+            .setUndoSupport(false)
+            .setReadOnly(true);
+
+        auto scroll =
+            new YScrollBar(fr)
+            .attachWidget(_txtLog)
+            .pack(0, 0, GeometrySide.right, GeometryFill.y);
+
+        _txtLog
+            .attachYScrollBar(scroll)
+            .pack(0, 0, GeometrySide.right, GeometryFill.both, AnchorPosition.center, true);
     }
 
     override protected void initInterface() {
@@ -258,7 +270,11 @@ private:
             _btnUpdate.removeState(disabled[ ]);
     }
 
-    public void focusLang(Flag!q{checkbox} checkbox, size_t index) {
+    public void focusLang(Flag!q{checkbox} checkbox, size_t index)
+    in {
+        assert(index < _wLangsChildren.length >> 1);
+    }
+    do {
         _wLangsChildren[index << 1 | (1 - checkbox)].focus();
     }
 
