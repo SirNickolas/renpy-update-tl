@@ -3,23 +3,22 @@ private:
 extern(C) __gshared string[ ] rt_options = [`gcopt=gc:precise cleanup:none`];
 
 version (Posix)
-    int main() {
+    int main(string[ ] args) {
         import main_1;
 
-        return run();
+        return run(args);
     }
 else {
-nothrow:
     pragma(lib, "user32.lib");
 
-    int _reportFatalError(const(wchar)* msg, const(wchar)* title) @nogc {
+    int _reportFatalError(const(wchar)* msg, const(wchar)* title) nothrow @nogc {
         import core.sys.windows.winuser;
 
         MessageBoxW(null, msg, title, MB_OK | MB_ICONEXCLAMATION);
         return 3;
     }
 
-    int _reportFatalError(const(char)[ ] msg, const(wchar)* title) @nogc {
+    int _reportFatalError(const(char)[ ] msg, const(wchar)* title) nothrow @nogc {
         import std.algorithm.mutation: copy;
         import std.range: take;
         import std.utf: byWchar;
@@ -29,8 +28,24 @@ nothrow:
         return _reportFatalError(buffer.ptr, title);
     }
 
+    string[ ] _parseArgs() {
+        import core.sys.windows.shellapi: CommandLineToArgvW;
+        import core.sys.windows.winbase: GetCommandLineW, LocalFree;
+        import std.algorithm.iteration: map;
+        import std.array: array;
+        import std.string: fromStringz;
+        import std.utf: toUTF8;
+
+        int n;
+        wchar** wArgs = CommandLineToArgvW(GetCommandLineW(), &n);
+        if (wArgs is null)
+            throw new Exception("CommandLineToArgvW failed");
+        scope(exit) LocalFree(wArgs);
+        return wArgs[0 .. n].map!(p => p.fromStringz().toUTF8()).array();
+    }
+
     extern(Windows)
-    int WinMain(void* hInstance, void* hPrevInstance, char* lpCmdLine, int nCmdShow) {
+    int WinMain(void* hInstance, void* hPrevInstance, char* lpCmdLine, int nCmdShow) nothrow {
         import core.runtime: Runtime;
         import std.array: array;
         import std.range: chain, only;
@@ -48,7 +63,7 @@ nothrow:
 
         int ret = 3;
         try
-            ret = run();
+            ret = run(_parseArgs());
         catch (Throwable th) {
             string msg;
             try

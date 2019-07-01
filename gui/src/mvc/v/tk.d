@@ -368,7 +368,7 @@ private:
     }
 }
 
-public Application createApplication() {
+public Application createApplication(string[ ] args) {
     return new Application;
 }
 

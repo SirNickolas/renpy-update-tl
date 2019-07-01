@@ -269,7 +269,7 @@ private:
     }
 }
 
-public MainWidget createApplication() {
+public MainWidget createApplication(string[ ] args) {
     import version_: programVersion;
 
     embeddedResourceList.addResources(embedResourcesFromList!`resources.list`());
