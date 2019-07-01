@@ -17,7 +17,7 @@ interface IView {
     IView setListener(IViewListener) @safe;
     void update(ref const Model model);
     void focusLang(Flag!q{checkbox} checkbox, size_t index);
-    string selectDirectory(string title, string initial);
+    void selectDirectory(string title, string initial, void delegate(IView, string path) @system);
     void showWarning(string title, string text);
     void appendToLog(string text);
     void startAsyncWatching();

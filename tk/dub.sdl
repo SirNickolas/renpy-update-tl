@@ -6,7 +6,10 @@ license     "MIT"
 
 toolchainRequirements frontend=">=2.078"
 
+// dependency "dlangui" version="~>0.9.182"
 dependency "tkd" version="~>1.1.13"
+
+// subConfiguration "dlangui" "minimal"
 
 debugVersions "showTclErrors"
 stringImportPaths "views" "../views"

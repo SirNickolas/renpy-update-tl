@@ -17,15 +17,13 @@ final class Controller: IViewListener {
         _model = model;
     }
 
-    void onBtnRenpySDKClick(IView view) {
-        const newPath = view.selectDirectory("Select Ren'Py SDK directory", _model.renpySDKPath);
+    private void _onRenpySDKSelected(IView view, string newPath) {
         if (newPath.empty || !_model.trySetRenpySDKPath(newPath))
             return;
         view.update(*_model);
     }
 
-    void onBtnProjectClick(IView view) {
-        const newPath = view.selectDirectory("Select project directory", _model.projectPath);
+    private void _onProjectSelected(IView view, string newPath) {
         if (newPath.empty)
             return;
         if (!_model.trySetProjectPath(newPath)) {
@@ -38,6 +36,22 @@ final class Controller: IViewListener {
         _model.incProjectNumber();
         _model.busy = false;
         view.update(*_model);
+    }
+
+    void onBtnRenpySDKClick(IView view) {
+        view.selectDirectory(
+            "Select Ren'Py SDK directory",
+            _model.renpySDKPath,
+            &_onRenpySDKSelected,
+        );
+    }
+
+    void onBtnProjectClick(IView view) {
+        view.selectDirectory(
+            "Select project directory",
+            _model.projectPath,
+            &_onProjectSelected,
+        );
     }
 
     void onLangCheck(IView view, size_t index, bool checked) {

@@ -1,4 +1,4 @@
-module mvc.v.concrete;
+module mvc.v.tk;
 
 import std.typecons: Flag, Yes, No, Tuple, tuple;
 
@@ -275,27 +275,32 @@ private:
         _wLangsChildren[index << 1 | (1 - checkbox)].focus();
     }
 
-    public string selectDirectory(string title, string initial) {
+    public void selectDirectory(
+        string title,
+        string initial,
+        void delegate(IView, string path) @system callback,
+    ) {
         import std.file: getcwd;
         import std.path: dirSeparator;
         import std.range.primitives: empty;
         import std.typecons: scoped;
 
-        auto dialog = scoped!DirectoryDialog(title);
-        dialog
-            .setInitialDirectory(!initial.empty ? initial : getcwd())
-            .setDirectoryMustExist(true)
-            .show();
-
-        const path = dialog.getResult();
+        const path = {
+            auto dialog = scoped!DirectoryDialog(title);
+            dialog
+                .setInitialDirectory(!initial.empty ? initial : getcwd())
+                .setDirectoryMustExist(true)
+                .show();
+            return dialog.getResult();
+        }();
         static if (dirSeparator != `\`)
-            return path;
+            callback(this, path);
         else {
             import std.algorithm.iteration;
             import std.array;
             import std.utf;
 
-            return path.byCodeUnit().substitute!('/', '\\').array();
+            callback(this, path.byCodeUnit().substitute!('/', '\\').array());
         }
     }
 
@@ -361,4 +366,13 @@ private:
             n = (cast()_asyncCount)--;
         assert(n);
     }
+}
+
+public Application createApplication() {
+    return new Application;
+}
+
+public int runApplication(Application app) {
+    app.run();
+    return 0;
 }

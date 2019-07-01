@@ -6,16 +6,15 @@ int run() {
 
     import config_file;
     import mvc.c;
-    import mvc.v.concrete;
+    import mvc.v.tk;
 
     defaultPoolThreads = totalCPUs;
 
     auto model = parseConfig();
-    auto app = scoped!Application();
+    scope(success) dumpConfig(model);
+    auto app = createApplication();
     auto ctrl = scoped!Controller(&model);
     app.setListener(ctrl);
     app.update(model);
-    app.run();
-    dumpConfig(model);
-    return 0;
+    return runApplication(app);
 }
