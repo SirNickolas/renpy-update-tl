@@ -65,11 +65,11 @@ private:
     /+
         UI generation.
     +/
-    TableLayout _createLtLangs() {
+    static TableLayout _createLtLangs() {
         return new TableLayout().colCount(2);
     }
 
-    EditLine _createEdlnLang() {
+    static EditLine _createEdlnLang() {
         auto edln = new EditLine;
         edln.layoutWidth = _langWidth;
         return edln;
@@ -83,7 +83,7 @@ private:
         return btn;
     }
 
-    void _configureLang(ref const Lang lang, bool busy, CheckBox chkbx, EditLine edln) {
+    static void _configureLang(ref const Lang lang, bool busy, CheckBox chkbx, EditLine edln) {
         chkbx.checked = lang.enabled;
         chkbx.enabled = !busy;
         edln.text = lang.name.to!dstring();

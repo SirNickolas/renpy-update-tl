@@ -9,12 +9,26 @@ toolchainRequirements frontend=">=2.078"
 // dependency "dlangui" version="~>0.9.182"
 dependency "tkd" version="~>1.1.13"
 
-// subConfiguration "dlangui" "minimal"
-
-debugVersions "showTclErrors"
 stringImportPaths "views" "../views"
+targetType "executable"
 targetName "renpy-update-tl-gui"
 
-copyFiles "$TCLTK_PACKAGE_DIR/dist/library/" platform="windows"
-postBuildCommands `copy /y "$TCLTK_PACKAGE_DIR\dist\x86\*" . >nul` platform="windows-x86"
-postBuildCommands `copy /y "$TCLTK_PACKAGE_DIR\dist\x86_64\*" . >nul` platform="windows-x86_64"
+configuration "gtk" {
+    versions "GTKApplication"
+    libs "gtkd"
+}
+
+configuration "tk" {
+    versions "TkApplication"
+    debugVersions "showTclErrors"
+
+    copyFiles "$TCLTK_PACKAGE_DIR/dist/library/" platform="windows"
+    postBuildCommands `copy /y "$TCLTK_PACKAGE_DIR\dist\x86\*" . >nul` platform="windows-x86"
+    postBuildCommands `copy /y "$TCLTK_PACKAGE_DIR\dist\x86_64\*" . >nul` platform="windows-x86_64"
+}
+
+/*
+configuration "dlangui" {
+    subConfiguration "dlangui" "minimal"
+}
+*/

@@ -1,5 +1,7 @@
 module mvc.v.tk;
 
+version (TkApplication):
+
 import std.typecons: Flag, Yes, No, Tuple, tuple;
 
 import tkd.element.element: Element;
@@ -133,7 +135,7 @@ private:
         _entProject = t[1];
     }
 
-    void _configureLang(ref const Lang lang, bool busy, CheckButton chkbx, Entry ent) {
+    static void _configureLang(ref const Lang lang, bool busy, CheckButton chkbx, Entry ent) {
         string[1] readOnly = [State.readonly], disabled = [State.disabled];
         if (lang.enabled)
             chkbx.check();

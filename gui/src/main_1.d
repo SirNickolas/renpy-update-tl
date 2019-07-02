@@ -6,7 +6,12 @@ int run(string[ ] args) {
 
     import config_file;
     import mvc.c;
-    import mvc.v.tk;
+    version (GTKApplication)
+        import mvc.v.gtk.app;
+    else version (TkApplication)
+        import mvc.v.tk;
+    else
+        static assert(false, "Unknown GUI backend");
 
     defaultPoolThreads = totalCPUs;
 

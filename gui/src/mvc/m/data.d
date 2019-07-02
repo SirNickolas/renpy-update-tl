@@ -16,6 +16,11 @@ nothrow @safe:
     }
     bool busy = true;
 
+    invariant {
+        assert(_langs.length <= int.max); // Necessary for GUI frameworks to work correctly.
+        // Anyway, the program will run out of memory long before this limit is reached.
+    }
+
     @disable this(this);
 
     @property string renpySDKPath() const pure @nogc {
