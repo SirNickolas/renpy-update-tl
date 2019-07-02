@@ -100,6 +100,7 @@ final class Controller: IViewListener {
             runCLITool(_model.renpySDKPath, _model.projectPath, langNames, (CLIResult result) {
                 view.executeInMainThread((IView view) {
                     view.stopAsyncWatching();
+                    _model.decRunning();
                     if (!result.output.empty) {
                         view.appendToLog(result.output);
                         if (result.output[$ - 1] != '\n')
@@ -114,6 +115,7 @@ final class Controller: IViewListener {
                     view.update(*_model);
                 });
             });
+            _model.incRunning();
             _model.busy = true;
             view.appendToLog("Wait a few seconds, please...\n");
             view.startAsyncWatching();

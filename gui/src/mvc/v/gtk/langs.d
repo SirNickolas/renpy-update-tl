@@ -2,8 +2,6 @@ module mvc.v.gtk.langs;
 
 version (GTKApplication):
 
-import std.typecons: scoped;
-
 import gtk.Box;
 import gtk.Button;
 import gtk.CheckButton;
@@ -14,35 +12,34 @@ import gtk.Image;
 
 import mvc.m.data: Lang;
 
-private @system:
+@system:
 
-package final class Languages: Box {
+final class Languages: Box {
 private:
-    typeof(scoped!Frame("")) _frame;
-    typeof(scoped!Grid()) _grid;
-    typeof(scoped!Button()) _btnAdd;
+    Grid _grid;
+    Button _btnAdd;
     int _count;
 
     invariant {
+        assert(_grid !is null);
+        assert(_btnAdd !is null);
         assert(_count >= 0);
     }
 
     public this() {
         super(Orientation.HORIZONTAL, 0);
 
-        _grid = scoped!Grid();
+        _grid = new Grid;
         _grid.setBorderWidth(6);
         _grid.setRowSpacing(2);
 
-        _btnAdd = scoped!Button();
+        _btnAdd = new Button;
         _btnAdd.setImage(new Image(`views/img/plus-12.png`));
         _grid.attach(_btnAdd, 0, 0, 1, 1);
 
-        _frame = scoped!Frame(_grid, "Languages");
-        _frame.setLabelAlign(.06, .5);
-        add(_frame);
-
-        debug _setCount(3);
+        auto frame = new Frame(_grid, "Languages");
+        frame.setLabelAlign(.06, .5);
+        add(frame);
     }
 
     void _setCount(int n)

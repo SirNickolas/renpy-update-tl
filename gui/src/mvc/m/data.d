@@ -13,6 +13,7 @@ nothrow @safe:
         string _projectPath;
         Lang[ ] _langs;
         uint _projectNumber;
+        uint _running;
     }
     bool busy = true;
 
@@ -88,5 +89,21 @@ nothrow @safe:
 
     void incProjectNumber() pure @nogc {
         _projectNumber++;
+    }
+
+    @property uint running() const pure @nogc {
+        return _running;
+    }
+
+    void incRunning() pure @nogc {
+        _running++;
+    }
+
+    void decRunning() pure @nogc
+    in {
+        assert(_running);
+    }
+    do {
+        _running--;
     }
 }
