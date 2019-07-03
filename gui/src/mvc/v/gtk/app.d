@@ -2,9 +2,10 @@ module mvc.v.gtk.app;
 
 version (GTKApplication):
 
-import std.typecons: Flag, Yes, No, BlackHole, scoped;
+import std.typecons: Flag, scoped;
 
 import gtk.Box;
+import gtk.Button;
 import gtk.Main;
 import gtk.MainWindow;
 
@@ -15,23 +16,22 @@ import mvc.v.gtk.path_controls;
 import mvc.v.gtk.update_button;
 import mvc.v.iface;
 
-private @system:
+@system:
 
-package final class MyWindow: MainWindow {
-private:
-    PathControls _pathControls;
-    Languages _languages;
-    UpdateButton _updateBtn;
-    Output _output;
+private final class _MyWindow: MainWindow {
+    PathControls pathControls;
+    Languages languages;
+    UpdateButton updateBtn;
+    Output output;
 
     invariant {
-        assert(_pathControls !is null);
-        assert(_languages !is null);
-        assert(_updateBtn !is null);
-        assert(_output !is null);
+        assert(pathControls !is null);
+        assert(languages !is null);
+        assert(updateBtn !is null);
+        assert(output !is null);
     }
 
-    public this() {
+    this() {
         import version_;
 
         enum title = "Ren'Py translation updater (v" ~ programVersion ~ ')';
@@ -41,40 +41,148 @@ private:
         setSizeRequest(width, height);
         setBorderWidth(7);
 
-        _pathControls = new PathControls;
-        _languages = new Languages;
-        _updateBtn = new UpdateButton;
-        _output = new Output;
+        pathControls = new PathControls;
+        languages = new Languages;
+        updateBtn = new UpdateButton;
+        output = new Output;
 
         auto vbox = new Box(Orientation.VERTICAL, 5);
-        vbox.add(_pathControls);
-        vbox.add(_languages);
-        vbox.add(_updateBtn);
-        vbox.add(_output);
+        vbox.add(pathControls);
+        vbox.add(languages);
+        vbox.add(updateBtn);
+        vbox.add(output);
         add(vbox);
     }
 }
 
-public final class Application: BlackHole!IView {
+final class GTKView: IView {
     private {
-        typeof(scoped!MyWindow()) _window;
+        typeof(scoped!_MyWindow()) _window;
         IViewListener _listener;
+
+        void _hndBtnRenpySDKClick(Button _) {
+            if (_listener !is null)
+                _listener.onBtnRenpySDKClick(this);
+        }
+
+        void _hndBtnProjectClick(Button _) {
+            if (_listener !is null)
+                _listener.onBtnProjectClick(this);
+        }
+
+        void _hndLangCheck(size_t index, bool active) {
+            if (_listener !is null)
+                _listener.onLangCheck(this, index, active);
+        }
+
+        void _hndEntLangFocusOut(size_t index, string text) {
+            if (_listener !is null)
+                _listener.onEntLangFocusOut(this, index, text);
+        }
+
+        void _hndBtnAddLangClick(Button _) {
+            if (_listener !is null)
+                _listener.onBtnAddLangClick(this);
+        }
+
+        void _hndBtnUpdateClick(Button _) {
+            if (_listener !is null)
+                _listener.onBtnUpdateClick(this);
+        }
     }
 
     this() {
-        _window = scoped!MyWindow();
+        _window = scoped!_MyWindow();
+        _window.pathControls.addOnClicked(PathControl.renpySDK, &_hndBtnRenpySDKClick);
+        _window.pathControls.addOnClicked(PathControl.project, &_hndBtnProjectClick);
+        _window.languages.setOnClicked(&_hndLangCheck);
+        _window.languages.setOnFocusOut(&_hndEntLangFocusOut);
+        _window.languages.addOnAddClicked(&_hndBtnAddLangClick);
+        _window.updateBtn.addOnClicked(&_hndBtnUpdateClick);
     }
 
-    override typeof(this) setListener(IViewListener listener) nothrow pure @safe @nogc {
+    typeof(this) setListener(IViewListener listener) nothrow pure @safe @nogc {
         _listener = listener;
         return this;
     }
 
-    override void update(ref const Model model) {
-        _window._pathControls.setValues(model.renpySDKPath, model.projectPath);
-        _window._languages.update(model.langs, model.busy);
-        _window._updateBtn.setSensitive(!model.busy);
-        _window._updateBtn.setInProgress(!!model.running);
+    void update(ref const Model model) {
+        _window.pathControls.setValues(model.renpySDKPath, model.projectPath);
+        _window.languages.update(model.langs, model.busy);
+        _window.updateBtn.setSensitive(!model.busy);
+        _window.updateBtn.setInProgress(!!model.running);
+    }
+
+    void focusLang(Flag!q{checkbox} checkbox, size_t index)
+    in {
+        assert(index <= int.max);
+    }
+    do {
+        _window.languages.focus(checkbox, cast(uint)index);
+    }
+
+    private string _selectDirectory(string title, string initial) {
+        import std.range.primitives: empty;
+        import gtk.FileChooserDialog;
+
+        string[1] buttonsText = ["Select"];
+        ResponseType[1] responses = [ResponseType.ACCEPT];
+        auto dlg = scoped!FileChooserDialog(
+            title,
+            _window,
+            FileChooserAction.SELECT_FOLDER,
+            buttonsText[ ],
+            responses[ ],
+        );
+        scope(exit) dlg.destroy();
+        dlg.setCreateFolders(false);
+        if (!initial.empty)
+            dlg.setCurrentFolder(initial);
+        return dlg.run() == ResponseType.ACCEPT ? dlg.getFilename() : "";
+    }
+
+    void selectDirectory(
+        string title,
+        string initial,
+        void delegate(IView, string) @system callback,
+    ) {
+        import std.range.primitives: empty;
+        import glib.CharacterSet;
+
+        auto path = _selectDirectory(title, initial);
+        if (!path.empty) {
+            size_t bytesRead, bytesWritten;
+            path = CharacterSet.filenameToUtf8(path, path.length, bytesRead, bytesWritten);
+        }
+        callback(this, path);
+    }
+
+    void showWarning(string title, string text) {
+        import gtk.MessageDialog;
+
+        auto dlg = scoped!MessageDialog(
+            _window,
+            DialogFlags.DESTROY_WITH_PARENT,
+            MessageType.WARNING,
+            ButtonsType.CLOSE,
+            text,
+        );
+        scope(exit) dlg.destroy();
+        dlg.setTitle(title);
+        dlg.run();
+    }
+
+    void appendToLog(string text) {
+        _window.output.appendText(text);
+    }
+
+    void startAsyncWatching() const nothrow pure @safe @nogc { }
+    void stopAsyncWatching() const nothrow pure @safe @nogc { }
+
+    void executeInMainThread(void delegate(IView) @system dg) {
+        import glib.Idle;
+
+        new Idle({ dg(this); return false; });
     }
 
     void show() {
@@ -82,12 +190,12 @@ public final class Application: BlackHole!IView {
     }
 }
 
-public Application createApplication(string[ ] args) {
+GTKView createApplication(string[ ] args) {
     Main.init(args);
-    return new Application;
+    return new GTKView;
 }
 
-public int runApplication(Application app) {
+int runApplication(GTKView app) {
     app.show();
     Main.run();
     return 0;

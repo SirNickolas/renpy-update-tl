@@ -100,18 +100,18 @@ final class Controller: IViewListener {
             runCLITool(_model.renpySDKPath, _model.projectPath, langNames, (CLIResult result) {
                 view.executeInMainThread((IView view) {
                     view.stopAsyncWatching();
-                    _model.decRunning();
                     if (!result.output.empty) {
                         view.appendToLog(result.output);
                         if (result.output[$ - 1] != '\n')
                             view.appendToLog("\n");
                     }
                     view.appendToLog(result.ok ? "Done.\n\n" : "Failed.\n\n");
-                    if (_model.projectNumber != projectNumber)
-                        return;
 
-                    _model.langs.filter!q{a.enabled}.each!q{a.ephemeral = false};
-                    _model.busy = false;
+                    _model.decRunning();
+                    if (_model.projectNumber == projectNumber) {
+                        _model.langs.filter!q{a.enabled}.each!q{a.ephemeral = false};
+                        _model.busy = false;
+                    }
                     view.update(*_model);
                 });
             });

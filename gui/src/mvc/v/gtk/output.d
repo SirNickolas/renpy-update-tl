@@ -8,7 +8,10 @@ import gtk.TextView;
 @system:
 
 final class Output: ScrolledWindow {
-    private TextView _txtLog;
+    private {
+        TextView _txtLog;
+        size_t _newlines;
+    }
 
     invariant {
         assert(_txtLog !is null);
@@ -24,6 +27,20 @@ final class Output: ScrolledWindow {
     }
 
     void appendText(string text) {
-        _txtLog.appendText(text);
+        import std.algorithm.mutation: stripRight;
+        import std.range.primitives: empty;
+        import std.utf: byCodeUnit;
+
+        const stripped = text.byCodeUnit().stripRight('\n').source;
+        if (stripped.empty)
+            _newlines += text.length;
+        else {
+            foreach (i; 0 .. _newlines >> 1)
+                _txtLog.appendText("\n\n");
+            if (_newlines & 0x1)
+                _txtLog.appendText("\n");
+            _txtLog.appendText(stripped);
+            _newlines = text.length - stripped.length;
+        }
     }
 }

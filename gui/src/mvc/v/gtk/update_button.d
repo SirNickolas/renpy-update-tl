@@ -26,14 +26,6 @@ final class UpdateButton: Box {
         _spinner = new Spinner;
         add(_btn);
         add(_spinner);
-
-        debug {
-            bool b;
-            _btn.addOnClicked((Button btn) {
-                b = !b;
-                setInProgress(b);
-            });
-        }
     }
 
     override bool getSensitive() {
@@ -53,5 +45,9 @@ final class UpdateButton: Box {
             _spinner.start();
         else
             _spinner.stop();
+    }
+
+    void addOnClicked(void delegate(Button) @system dg) {
+        _btn.addOnClicked(dg);
     }
 }

@@ -11,6 +11,8 @@ import gtk.Label;
 
 @system:
 
+enum PathControl: ubyte { renpySDK, project }
+
 final class PathControls: Grid {
     private {
         Button[2] _btns;
@@ -53,5 +55,9 @@ final class PathControls: Grid {
     void setValues(string renpySDKPath, string projectPath) {
         _ents[0].setText(renpySDKPath);
         _ents[1].setText(projectPath);
+    }
+
+    void addOnClicked(PathControl which, void delegate(Button) @system handler) {
+        _btns[which].addOnClicked(handler);
     }
 }
