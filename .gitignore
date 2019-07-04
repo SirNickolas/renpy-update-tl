@@ -1,6 +1,6 @@
 .dub/
 dub.selections.json
-/renpy-update-tl.zip
+/build/
 /renpy-update-tl
 /*.exe
 /*.a
