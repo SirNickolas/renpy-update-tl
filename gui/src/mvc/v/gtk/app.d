@@ -190,8 +190,16 @@ final class GTKView: IView {
     }
 }
 
-GTKView createApplication(string[ ] args) {
+GTKView createApplication(string[ ] args, ref const Model model) {
     Main.init(args);
+    version (Windows) {
+        import gio.Settings;
+
+        // Windows users are unlikely to have GTK+ runtime installed, so modifying
+        // their global settings once should be more or less tolerable.
+        if (model.firstRun)
+            new Settings("org.gtk.Settings.FileChooser").setBoolean("sort-directories-first", true);
+    }
     return new GTKView;
 }
 

@@ -62,10 +62,9 @@ string _locateConfigDir() {
     if (const path = _tryLocate(_getenv("HOME"), `.config`))
         return path;
     // $TMPDIR/
-    try {
-        const path = tempDir();
-        return path != `.` ? path : null;
-    } catch (Exception)
+    try
+        return tempDir();
+    catch (Exception)
         return null;
 }
 
@@ -73,7 +72,7 @@ shared static this() {
     import std.path: buildPath;
 
     if (const path = _locateConfigDir())
-        _configPath = buildPath(path, `renpy-update-tl/gui.json`);
+        _configPath = path != `.` ? buildPath(path, `renpy-update-tl/gui.json`) : `gui.json`;
 }
 
 public Model parseConfig() {
@@ -90,8 +89,13 @@ public Model parseConfig() {
         try
             model.trySetRenpySDKPath(config["renpySDKPath"].str);
         catch (JSONException) { }
-        model.trySetProjectPath(config["projectPath"].str);
-        model.busy = model.projectPath.empty;
+        try {
+            model.trySetProjectPath(config["projectPath"].str);
+            model.busy = model.projectPath.empty;
+        } catch (JSONException) { }
+        try
+            model.firstRun = config["firstRun"].boolean;
+        catch (JSONException) { }
     } catch (Exception) { }
     return model;
 }
@@ -105,8 +109,9 @@ public void dumpConfig(ref const Model model) {
         return;
     try {
         const JSONValue j = [
-            "renpySDKPath": model.renpySDKPath,
-            "projectPath":  model.projectPath,
+            "renpySDKPath": JSONValue(model.renpySDKPath),
+            "projectPath":  JSONValue(model.projectPath),
+            "firstRun":     JSONValue(model.firstRun),
         ];
         mkdirRecurse(dirName(_configPath));
         write(_configPath, j.toJSON());

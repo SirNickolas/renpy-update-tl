@@ -370,7 +370,7 @@ private:
     }
 }
 
-public Application createApplication(string[ ] args) {
+public Application createApplication(string[ ] args, ref const Model model) {
     return new Application;
 }
 

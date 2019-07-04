@@ -16,8 +16,11 @@ int run(string[ ] args) {
     defaultPoolThreads = totalCPUs;
 
     auto model = parseConfig();
-    scope(success) dumpConfig(model);
-    auto app = createApplication(args);
+    scope(success) {
+        model.firstRun = false;
+        dumpConfig(model);
+    }
+    auto app = createApplication(args, model);
     auto ctrl = scoped!Controller(&model);
     app.setListener(ctrl);
     app.update(model);

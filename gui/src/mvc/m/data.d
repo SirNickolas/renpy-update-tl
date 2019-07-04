@@ -16,6 +16,7 @@ nothrow @safe:
         uint _running;
     }
     bool busy = true;
+    bool firstRun = true;
 
     invariant {
         assert(_langs.length <= int.max); // Necessary for GUI frameworks to work correctly.
