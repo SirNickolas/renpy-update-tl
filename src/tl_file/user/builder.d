@@ -25,6 +25,39 @@ string stripBlankLines(string text) {
     }
 }
 
+private TranslationState _classifyBlock(string oldText, string newText) {
+    import std.algorithm;
+    import std.ascii: isWhite;
+    import std.utf: byCodeUnit;
+
+    auto s = newText.byCodeUnit().stripLeft!isWhite();
+    if (s.source == oldText)
+        return TranslationState.identical;
+    auto t = s.find!(among!('"', '\''));
+    if (t.length >= 2 && t[0] == t[1]) {
+        auto old = oldText.byCodeUnit();
+        if (old.startsWith(s[0 .. $ - (t.length - 1)]) && old.endsWith(t[1 .. $]))
+            return TranslationState.blank;
+    }
+    return TranslationState.translated;
+}
+
+private TranslationState _classifyPlainString(string oldText, string newText) {
+    import std.algorithm;
+    import std.ascii: isWhite;
+    import std.utf: byCodeUnit;
+
+    auto s = newText.byCodeUnit().stripLeft!isWhite();
+    if (s.skipOver("new".byCodeUnit())) {
+        newText = s.stripLeft!isWhite().source;
+        if (newText.among!(`""`, `''`))
+            return TranslationState.blank;
+        if (newText == oldText)
+            return TranslationState.identical;
+    }
+    return TranslationState.translated;
+}
+
 private alias _strip = stripBlankLines;
 
 Block makeDialogueBlock(
@@ -34,12 +67,14 @@ Block makeDialogueBlock(
     string oldText,
     string contents1,
 ) {
+    contents1 = contents1._strip();
     return Block(DialogueBlock(
         summary._strip(),
         labelAndHash,
         contents0._strip(),
         oldText,
-        contents1._strip(),
+        contents1,
+        _classifyBlock(oldText, contents1),
     ));
 }
 
@@ -48,5 +83,11 @@ Block makeUnrecognizedBlock(string contents) {
 }
 
 PlainString makePlainString(string contents0, string oldText, string contents1) {
-    return PlainString(contents0._strip(), oldText, contents1._strip());
+    contents1 = contents1._strip();
+    return PlainString(
+        contents0._strip(),
+        oldText,
+        contents1,
+        _classifyPlainString(oldText, contents1),
+    );
 }

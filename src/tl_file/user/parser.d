@@ -25,7 +25,7 @@ enum _State: ubyte {
 bool _isLocation(const(char)[ ] line) @nogc {
     import std.ascii: isDigit;
 
-    // ^#[^\0-\x1F?*<>|:]*\.rpym?:\d+\s*$
+    // ^#\s*[^\0-\x1F?*<>|:]*\.rpym?:\d+\s*$
     auto s = line.byCodeUnit();
     if (!s.skipOver('#'))
         return false;

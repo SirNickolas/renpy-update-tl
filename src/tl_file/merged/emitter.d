@@ -23,6 +23,23 @@ auto _byCodeUnit(Args...)(const(char)[ ] head, Args tail) @nogc {
     return tuple(head.byCodeUnit(), _byCodeUnit(tail).expand);
 }
 
+bool _isBlankPara(const(char)[ ] text) @nogc {
+    import std.algorithm;
+    import std.ascii: isWhite;
+    import std.string: lineSplitter;
+    import std.utf: byCodeUnit;
+
+    return text.lineSplitter().all!((line) {
+        auto s = line.byCodeUnit().stripLeft!isWhite();
+        if (s.empty)
+            return true;
+        if (!s.skipOver('#'))
+            return false;
+        s.skipOver!isWhite();
+        return s.empty || s.startsWith(`TODO: `.byCodeUnit());
+    });
+}
+
 enum _ct(alias x) = x;
 
 struct _Emitter {
@@ -59,21 +76,33 @@ nothrow pure:
     +/
     void emit(Flag!q{exact} exact, ref const tlu.DialogueBlock u, ref const tlg.DialogueBlock g) {
         write(`# `, g.location, newline);
-        if (!exact)
-            write(_ct!(`# TODO: MODIFIED.` ~ newline));
         writePara(u.summary);
         write(`translate `, lang, ` `, g.labelAndHash, _ct!(':' ~ newline ~ newline));
         writePara(u.contents0);
         write(`    # `, g.oldText, newline);
         if (!exact)
-            write(
-                `    # `, u.oldText,
-                _ct!(` # OUTDATED; delete this line when no longer needed.` ~ newline),
-            );
+            final switch (u.state) with (tlu.TranslationState) {
+            case blank:
+                write(`    `, g.newText, newline);
+                return;
+            case identical:
+                write(`    `, g.oldText, newline);
+                return;
+            case translated:
+                write(
+                    `    # `, u.oldText,
+                    _ct!(` # TODO: OUTDATED; delete this line when no longer needed.` ~ newline),
+                );
+                break;
+            }
         writePara(u.contents1);
     }
 
     void emitOutdated(ref const tlu.DialogueBlock u) {
+        if (u.state != tlu.TranslationState.translated &&
+            _isBlankPara(u.summary) && _isBlankPara(u.contents0)
+        )
+            return; // There was no translation; delete this block.
         // We've lost location. Do we care about it much?..
         write(_ct!(`# TODO: OUTDATED; delete these lines when no longer needed.` ~ newline));
         writeParaCommented(u.summary);
@@ -102,19 +131,28 @@ nothrow pure:
     +/
     void emit(Flag!q{exact} exact, ref const tlu.PlainString u, ref const tlg.PlainString g) {
         write(_ct!(newline ~ `    # `), g.location, newline);
-        if (!exact)
-            write(_ct!(`    # TODO: MODIFIED.` ~ newline));
         writePara(u.contents0);
         write(`    old `, g.oldText, newline);
         if (!exact)
-            write(
-                `    # old `, u.oldText,
-                _ct!(` # OUTDATED; delete this line when no longer needed.` ~ newline),
-            );
+            final switch (u.state) with (tlu.TranslationState) {
+            case blank:
+                break;
+            case identical:
+                write(`    new `, g.oldText, newline);
+                return;
+            case translated:
+                write(
+                    `    # old `, u.oldText,
+                    _ct!(` # TODO: OUTDATED; delete this line when no longer needed.` ~ newline),
+                );
+                break;
+            }
         writePara(u.contents1);
     }
 
     void emitOutdated(ref const tlu.PlainString u) {
+        if (u.state != tlu.TranslationState.translated && _isBlankPara(u.contents0))
+            return; // There was no translation; delete this pair.
         // We've lost location. Do we care about it much?..
         write(_ct!(
             newline ~ `# TODO: OUTDATED; delete these lines when no longer needed.` ~ newline

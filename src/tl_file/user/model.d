@@ -4,12 +4,19 @@ import sumtype;
 
 nothrow pure @safe @nogc:
 
+enum TranslationState: ubyte {
+    blank,
+    identical,
+    translated,
+}
+
 struct DialogueBlock {
     string summary; // After location.
     string labelAndHash;
     string contents0;
     string oldText;
     string contents1;
+    TranslationState state;
 }
 
 struct UnrecognizedBlock {
@@ -22,6 +29,7 @@ struct PlainString {
     string contents0; // After location.
     string oldText;
     string contents1;
+    TranslationState state;
 }
 
 struct Declarations {
