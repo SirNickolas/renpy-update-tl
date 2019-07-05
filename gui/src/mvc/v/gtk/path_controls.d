@@ -2,7 +2,6 @@ module mvc.v.gtk.path_controls;
 
 version (GTKApplication):
 
-import gdkpixbuf.Pixbuf;
 import gtk.Button;
 import gtk.Entry;
 import gtk.Grid;
@@ -34,13 +33,12 @@ final class PathControls: Grid {
             "Ren'Py SDK path:",
             "Project path:",
         ];
-        auto pixbuf = new Pixbuf(`views/img/document-open.png`);
         foreach (i; 0 .. 2) {
             auto label = new Label(captions[i]);
             label.setXalign(.0);
 
             _btns[i] = new Button;
-            _btns[i].setImage(new Image(pixbuf));
+            _btns[i].setImage(new Image("document-open", IconSize.BUTTON));
 
             _ents[i] = new Entry;
             _ents[i].setHexpand(true);

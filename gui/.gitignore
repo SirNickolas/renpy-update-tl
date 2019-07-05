@@ -1,3 +1,4 @@
+/views/*.gresource
 /library/
 /ui.log
 /renpy-update-tl-gui

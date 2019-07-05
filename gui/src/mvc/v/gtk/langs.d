@@ -33,6 +33,8 @@ private:
     }
 
     public this() {
+        import mvc.v.gtk.res;
+
         super(Orientation.HORIZONTAL, 0);
 
         _grid = new Grid;
@@ -40,7 +42,8 @@ private:
         _grid.setRowSpacing(2);
 
         _btnAdd = new Button;
-        _btnAdd.setImage(new Image(`views/img/plus-12.png`));
+        _btnAdd.setImage(createImageFromResource!`img/plus-12.png`());
+        _btnAdd.setTooltipText("Add a new language");
         _grid.attach(_btnAdd, 0, 0, 1, 1);
 
         auto frame = new Frame(_grid, "Languages");

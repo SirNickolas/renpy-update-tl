@@ -14,7 +14,6 @@ endif
 
 BUILD := build
 NAME := renpy-update-tl
-EXTRA := gui/views/
 CLI := $(NAME)$(SUFFIX)
 GUI := gui/$(NAME)-gui$(SUFFIX)
 BIN := $(BUILD)/$(NAME)/bin
@@ -52,7 +51,7 @@ gtkdist: $(DLLS)
 	scripts/cpgtk.sh $(BUILD)/$(NAME)/ $^
 
 build: $(CLI) $(GUI) $(WINDEPS)
-	cp -r $(CLI) $(GUI) $(EXTRA) $(BIN)/
+	cp -r $(CLI) $(GUI) $(BIN)/
 
 $(ARCHIVE): build
 	cd $(@D) && $(7Z) a -uq0z1 $(@F) $(NAME)/ >/dev/null

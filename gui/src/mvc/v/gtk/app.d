@@ -191,7 +191,11 @@ final class GTKView: IView {
 }
 
 GTKView createApplication(string[ ] args, ref const Model model) {
+    import gio.Resource;
+    import glib.Bytes;
+
     Main.init(args);
+    Resource.register(new Resource(new Bytes(cast(ubyte[ ])import(`main.gresource`))));
     version (Windows) {
         import gio.Settings;
 

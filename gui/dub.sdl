@@ -16,6 +16,9 @@ targetName "renpy-update-tl-gui"
 configuration "gtk" {
     versions "GTKApplication"
     libs "gtkd"
+
+    preBuildCommands "\
+        glib-compile-resources --target=views/main.gresource --sourcedir=res res/main.gresource.xml"
 }
 
 configuration "tk" {
