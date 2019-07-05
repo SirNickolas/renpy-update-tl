@@ -7,7 +7,7 @@ nothrow pure @safe @nogc:
 string stripBlankLines(string text) {
     import std.algorithm;
     import std.ascii: isWhite;
-    import std.range: empty;
+    import std.range.primitives: empty;
     import std.utf: byCodeUnit;
 
     auto s = text.byCodeUnit().stripRight!isWhite();

@@ -34,7 +34,7 @@ nothrow pure @nogc:
             assert(s.ptr >= _data.ptr && s.ptr + s.length <= _data.ptr + _data.length);
     }
     do {
-        import std.range: empty;
+        import std.range.primitives: empty;
 
         if (_cur.empty)
             _cur = s;

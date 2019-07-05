@@ -2,7 +2,7 @@ module tl_file.user.parser;
 
 import std.algorithm;
 import std.ascii: isWhite;
-import std.range: empty;
+import std.range.primitives: empty;
 import std.utf: byCodeUnit;
 
 import tl_file.user.model;

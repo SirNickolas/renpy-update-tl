@@ -54,14 +54,14 @@ nothrow pure:
     }
 
     void writePara(const(char)[ ] text) {
-        import std.range: empty;
+        import std.range.primitives: empty;
 
         if (!text.empty)
             write(text, newline);
     }
 
     void writeParaCommented(const(char)[ ] text) {
-        import std.range: empty;
+        import std.range.primitives: empty;
         import std.string: lineSplitter;
 
         foreach (line; text.lineSplitter())
@@ -177,7 +177,7 @@ nothrow pure:
         ref const tlu.Declarations ud,
         ref const tlg.Declarations gd,
     ) {
-        import std.range: empty;
+        import std.range.primitives: empty;
         import sumtype;
         import utils: unreachable;
 

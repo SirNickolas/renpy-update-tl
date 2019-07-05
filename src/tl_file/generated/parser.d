@@ -51,7 +51,7 @@ const(char)[ ] _extractDialogueNewText(const(char)[ ] line) @nogc {
 
 public Declarations parse(const(char)[ ] source) {
     import std.array: appender;
-    import std.range: empty;
+    import std.range.primitives: empty;
     import std.string: lineSplitter;
     import string_interner;
 

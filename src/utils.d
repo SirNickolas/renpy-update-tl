@@ -1,6 +1,6 @@
 module utils;
 
-import std.range: empty, isInputRange;
+import std.range.primitives: empty, isInputRange;
 
 bool skipOver1(alias pred, R)(ref R r) if (isInputRange!R) {
     import std.functional;

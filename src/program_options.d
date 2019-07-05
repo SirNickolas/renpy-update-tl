@@ -54,7 +54,7 @@ bool _isValidLang(const(char)[ ] lang) nothrow pure @nogc {
 void _validate(ref const ProgramOptions o) pure {
     import std.exception: enforce;
     import std.path;
-    import std.range: empty;
+    import std.range.primitives: empty;
 
     foreach (language; o.languages)
         enforce(_isValidLang(language), "Invalid language: `" ~ language ~ '`');
@@ -82,7 +82,7 @@ void _enforceDir(string path) {
 void _validateImpure(ref const ProgramOptions o) {
     import std.file: FileException;
     import std.path: buildPath;
-    import std.range: empty;
+    import std.range.primitives: empty;
 
     _enforceDir(o.projectPath);
     if (!o.renpyPath.empty)
