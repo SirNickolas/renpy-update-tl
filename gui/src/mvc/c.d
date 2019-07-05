@@ -91,6 +91,7 @@ final class Controller: IViewListener {
 
     void onBtnUpdateClick(IView view) {
         import std.algorithm.iteration;
+        import std.ascii: newline;
         import mvc.m.cli_runner;
 
         _model.removeInvalidLangs();
@@ -101,8 +102,15 @@ final class Controller: IViewListener {
                 view.executeInMainThread((IView view) {
                     view.stopAsyncWatching();
                     if (!result.output.empty) {
-                        view.appendToLog(result.output);
-                        if (result.output[$ - 1] != '\n')
+                        static if (newline.length <= 1)
+                            const output = result.output;
+                        else {
+                            import std.string: join, lineSplitter;
+
+                            const output = result.output.lineSplitter().join('\n');
+                        }
+                        view.appendToLog(output);
+                        if (output[$ - 1] != '\n')
                             view.appendToLog("\n");
                     }
                     view.appendToLog(result.ok ? "Done.\n\n" : "Failed.\n\n");

@@ -30,12 +30,12 @@ public lp.LangPack!(tlm.Results) _mergeLangPacks(
 
 int _run(const po.ProgramOptions options) @system {
     import std.array: appender, uninitializedArray;
-    import std.conv: text;
     import std.parallelism: defaultPoolThreads, parallel, taskPool;
     import std.path: absolutePath, buildPath, dirName;
-    import std.process: wait;
+    import std.process: ProcessException, wait;
     import std.range: empty, repeat, zip;
-    import stdf = std.file;
+    import std.stdio;
+    import stdf = std.file: FileException;
     import ri = renpy_interaction;
 
     if (options.jobs)
@@ -50,9 +50,22 @@ int _run(const po.ProgramOptions options) @system {
     if (!options.debugLanguageTemplate.empty)
         gen.path = buildPath(baseTlPath, options.debugLanguageTemplate);
     else {
-        if (!options.renpyPath.empty)
-            renpy = ri.locateRenpyInSdk(options.renpyPath);
-        gen = ri.generateTranslations(renpy, projectPath);
+        if (!options.renpyPath.empty) {
+            renpy = ri.locateRenpyInSDK(options.renpyPath);
+            if (renpy.empty) {
+                stderr.write("Cannot find Ren'Py in `", options.renpyPath, "`\n");
+                return 1;
+            }
+        }
+        try
+            gen = ri.generateTranslations(renpy, projectPath);
+        catch (ProcessException e) {
+            if (options.renpyPath.empty)
+                stderr.write("Cannot start Ren'Py (did you forget to specify path to the SDK?)\n");
+            else
+                stderr.writeln("Cannot start Ren'Py: ", e.msg);
+            return 1;
+        }
     }
 
     // Collect existing (old) translations.
@@ -63,8 +76,13 @@ int _run(const po.ProgramOptions options) @system {
 
     // Wait for Ren'Py to finish.
     if (options.debugLanguageTemplate.empty)
-        if (const ret = gen.pid.wait())
-            throw new Exception(text('`', renpy, "` terminated with code ", ret));
+        if (const ret = gen.pid.wait()) {
+            stderr.writeln('`', renpy, "` terminated with code ", ret);
+            try
+                stdf.rmdir(gen.path); // Remove it if it is empty.
+            catch (FileException) { }
+            return 1;
+        }
 
     // Collect the newly generated translation.
     const gLangPack = lp.collect!(tlg.parseFile)(gen.path);

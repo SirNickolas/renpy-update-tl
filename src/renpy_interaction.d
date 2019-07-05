@@ -5,12 +5,12 @@ import std.process: Pid;
 
 @safe:
 
-string locateRenpyInSdk(const(char)[ ] renpySdkPath)
+string locateRenpyInSDK(const(char)[ ] renpySDKPath) nothrow
 in {
-    assert(isValidPath(renpySdkPath));
+    assert(isValidPath(renpySDKPath));
 }
 out (renpy) {
-    assert(isValidPath(renpy));
+    assert(renpy is null || isValidPath(renpy));
 }
 do {
     import std.conv: text;
@@ -32,13 +32,15 @@ do {
         enum filename = `\renpy.exe`;
 
     foreach (arch; archs[ ]) {
-        const renpyPath = text(renpySdkPath, prefix, arch, filename);
+        const renpyPath = text(renpySDKPath, prefix, arch, filename);
         try
             if (isFile(renpyPath))
                 return renpyPath;
         catch (FileException) { }
+        catch (Exception e)
+            assert(false, e.msg);
     }
-    throw new Exception(text("No `renpy` in `", renpySdkPath, '`'));
+    return null;
 }
 
 private string[2] _makeTempLang(const(char)[ ] projectPath) {
@@ -76,9 +78,11 @@ out (result) {
     assert(isValidPath(result.path));
 }
 do {
+    import std.file: rmdir;
     import std.process: spawnProcess;
 
     const tempLang = _makeTempLang(projectPath);
+    scope(failure) rmdir(tempLang[0]);
     const char[ ][6] args = [renpy, projectPath, `translate`, `--empty`, `--no-todo`, tempLang[1]];
     return GenerationResult(spawnProcess(args[ ]), tempLang[0]);
 }

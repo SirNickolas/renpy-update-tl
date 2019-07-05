@@ -53,8 +53,8 @@ final class PathControls: Grid {
     }
 
     void setValues(string renpySDKPath, string projectPath) {
-        _ents[0].setText(renpySDKPath);
-        _ents[1].setText(projectPath);
+        _ents[0].setText(renpySDKPath !is null ? renpySDKPath : "");
+        _ents[1].setText(projectPath !is null ? projectPath : "");
     }
 
     void addOnClicked(PathControl which, void delegate(Button) @system handler) {
