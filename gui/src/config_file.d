@@ -86,6 +86,7 @@ public Model parseConfig() {
             auto mmf = scoped!MmFile(_configPath);
             return parseJSON(cast(const(char)[ ])(cast(MmFile)mmf)[ ], 1000);
         }();
+        model.firstRun = false;
         try
             model.uiLanguage = config["uiLanguage"].str;
         catch (JSONException) { }
@@ -96,9 +97,6 @@ public Model parseConfig() {
             model.trySetProjectPath(config["projectPath"].str);
             model.busy = model.projectPath.empty;
         } catch (JSONException) { }
-        try
-            model.firstRun = config["firstRun"].boolean;
-        catch (JSONException) { }
     } catch (Exception) { }
     return model;
 }
@@ -115,7 +113,6 @@ public void dumpConfig(ref const Model model) {
             "uiLanguage":   JSONValue(model.uiLanguage),
             "renpySDKPath": JSONValue(model.renpySDKPath),
             "projectPath":  JSONValue(model.projectPath),
-            "firstRun":     JSONValue(model.firstRun),
         ];
         mkdirRecurse(dirName(_configPath));
         write(_configPath, j.toJSON());
