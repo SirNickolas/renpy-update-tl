@@ -199,11 +199,25 @@ final class GTKView: IView {
     }
 }
 
+private void _detectLanguage() {
+    import std.algorithm.comparison: min;
+    import glib.Internationalization;
+    import i18n: MsgID, curLanguage, setCurLanguage;
+
+    foreach (code; Internationalization.getLanguageNames()) {
+        if (code.length >= 5 && setCurLanguage(code[0 .. 5]) !is null)
+            return;
+        if (setCurLanguage(code[0 .. min(2, $)]) !is null)
+            return;
+    }
+}
+
 GTKView createApplication(string[ ] args, ref const Model model) {
     import gio.Resource;
     import glib.Bytes;
 
     Main.init(args);
+    _detectLanguage();
     Resource.register(new Resource(new Bytes(cast(ubyte[ ])import(`main.gresource`))));
     version (Windows) {
         import gio.Settings;
