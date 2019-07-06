@@ -199,6 +199,12 @@ private:
         _btnUpdate.click = &_hndBtnUpdateClick;
     }
 
+    public void updateStrings() {
+        import std.stdio;
+
+        stderr.write("mvc.v.dlangui.MainWidget.updateStrings: Not implemented\n");
+    }
+
     /+
         UI updating.
     +/
@@ -285,6 +291,13 @@ public MainWidget createApplication(string[ ] args, ref const Model model) {
     auto widget = new MainWidget(window);
     window.mainWidget = widget;
     return widget;
+}
+
+public void changeUILanguage(ref string code) nothrow @safe @nogc {
+    import i18n: MsgID, curLanguage, setCurLanguage;
+
+    setCurLanguage(code);
+    code = curLanguage[MsgID.Meta.code];
 }
 
 public int runApplication(MainWidget widget) {

@@ -43,7 +43,7 @@ Language[2] languages = [
 ];
 
 private Language* _curLanguage = &languages[0];
-immutable Language*[string] languagesDict;
+immutable Language*[string] languageRegistry;
 
 shared static this() @trusted {
     version (assert)
@@ -54,9 +54,9 @@ shared static this() @trusted {
             assert(code !in used, "Duplicate language code: " ~ code);
             used[code] = true;
         }
-        languagesDict[code] = &lang;
-        if (code.length > 2 && code[0 .. 2] !in languagesDict)
-            languagesDict[code[0 .. 2]] = &lang;
+        languageRegistry[code] = &lang;
+        if (code.length > 2 && code[0 .. 2] !in languageRegistry)
+            languageRegistry[code[0 .. 2]] = &lang;
     }
 }
 
@@ -65,7 +65,7 @@ shared static this() @trusted {
 }
 
 Language* setCurLanguage(const(char)[ ] code) @nogc {
-    if (immutable p = code in languagesDict) {
+    if (immutable p = code in languageRegistry) {
         _curLanguage = *p;
         return *p;
     }

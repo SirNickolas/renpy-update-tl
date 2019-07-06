@@ -247,6 +247,12 @@ private:
         _createOutput();
     }
 
+    public void updateStrings() {
+        import std.stdio;
+
+        stderr.write("mvc.v.tk.Application.updateStrings: Not implemented\n");
+    }
+
     /+
         UI updating.
     +/
@@ -372,6 +378,13 @@ private:
 
 public Application createApplication(string[ ] args, ref const Model model) {
     return new Application;
+}
+
+public void changeUILanguage(ref string code) nothrow @safe @nogc {
+    import i18n: MsgID, curLanguage, setCurLanguage;
+
+    setCurLanguage(code);
+    code = curLanguage[MsgID.Meta.code];
 }
 
 public int runApplication(Application app) {

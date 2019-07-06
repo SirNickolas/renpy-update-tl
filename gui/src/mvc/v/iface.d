@@ -15,6 +15,7 @@ interface IViewListener {
 
 interface IView {
     IView setListener(IViewListener) @safe;
+    void updateStrings();
     void update(ref const Model model);
     void focusLang(Flag!q{checkbox} checkbox, size_t index);
     void selectDirectory(string title, string initial, void delegate(IView, string path) @system);
