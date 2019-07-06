@@ -8,6 +8,7 @@ struct Lang {
 
 struct Model {
 nothrow @safe:
+    string uiLanguage;
     private {
         string _renpySDKPath;
         string _projectPath;

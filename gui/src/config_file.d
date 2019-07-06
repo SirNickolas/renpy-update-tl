@@ -87,6 +87,9 @@ public Model parseConfig() {
             return parseJSON(cast(const(char)[ ])(cast(MmFile)mmf)[ ], 1000);
         }();
         try
+            model.uiLanguage = config["uiLanguage"].str;
+        catch (JSONException) { }
+        try
             model.trySetRenpySDKPath(config["renpySDKPath"].str);
         catch (JSONException) { }
         try {
@@ -109,6 +112,7 @@ public void dumpConfig(ref const Model model) {
         return;
     try {
         const JSONValue j = [
+            "uiLanguage":   JSONValue(model.uiLanguage),
             "renpySDKPath": JSONValue(model.renpySDKPath),
             "projectPath":  JSONValue(model.projectPath),
             "firstRun":     JSONValue(model.firstRun),
