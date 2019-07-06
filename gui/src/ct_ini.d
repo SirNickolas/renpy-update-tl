@@ -16,6 +16,7 @@ struct _Lexer {
 pure:
     size_t i;
     string s;
+    char[ ] buffer;
 
     void skipWhitespace() nothrow @nogc {
         for (; i != s.length; i++) {
@@ -35,12 +36,146 @@ pure:
         return s[start .. i];
     }
 
-    string captureLine() nothrow @nogc {
+    void put(size_t j, char c) nothrow {
+        if (j == buffer.length)
+            buffer.length <<= 1;
+        buffer[j] = c;
+    }
+
+    uint interpretHexDigit(char c) {
+        uint x = c - '0';
+        if (x < 10u)
+            return x;
+        x = (c | 0x20) - 'a';
+        if (x < 6u)
+            return x + 10;
+        throw new Exception("Invalid hex digit `" ~ c ~ '`');
+    }
+
+    string captureLine() {
+        import std.exception: enforce;
+        import std.utf: byChar, isValidDchar;
+
         const start = i;
-        while (i != s.length)
-            if (s[i++] == '\n')
-                return s[start .. i - 1];
-        return s[start .. $];
+        size_t end = s.length;
+        size_t j; // Index in `buffer`.
+        size_t rawStart; // Index in `s`.
+        uint hiWord, octal;
+        dchar[1] uni;
+        while (i != s.length) {
+            char c = s[i++];
+            if (c == '\n' || c == '\r') {
+                end = i - 1;
+                break;
+            } else if (c != '\\')
+                continue;
+
+            // Found a backslash.
+            if (const len = i - 1 - rawStart) {
+                // Copy part of the string we've skipped over.
+                if (j + len > buffer.length) {
+                    if (j + len <= buffer.length << 1)
+                        buffer.length <<= 1;
+                    else
+                        buffer.length = j + len + 16; // Rather arbitrary number.
+                }
+                buffer[j .. j + len] = s[rawStart .. i - 1];
+                j += len;
+            }
+
+            // https://dlang.org/spec/lex.html#escape_sequences
+            enforce(i != s.length, "Incomplete escape sequence: `\\`");
+            const esc = i;
+            c = s[i++];
+            rawStart = i;
+            switch (c) {
+            case '\'', '"', '?', '\\':
+                put(j++, c);
+                continue;
+
+            case 'a': put(j++, '\a'); break;
+            case 'b': put(j++, '\b'); break;
+            case 'f': put(j++, '\f'); break;
+            case 'n': put(j++, '\n'); break;
+            case 'r': put(j++, '\r'); break;
+            case 't': put(j++, '\t'); break;
+            case 'v': put(j++, '\v'); break;
+
+            case '0', '1', '2', '3':
+                octal = c - '0';
+                if (i != s.length) {
+                    uint c1 = s[i] - '0';
+                    if (c1 < 8u) {
+                        octal = octal << 3 | c1;
+                        if (i + 1 != s.length) {
+                            c1 = s[i + 1] - '0';
+                            if (c1 < 8u) {
+                                octal = octal << 3 | c1;
+                                i += 2;
+                                goto setRawStartOctal;
+                            }
+                        }
+                        i++;
+                    setRawStartOctal:
+                        rawStart = i;
+                    }
+                }
+                put(j++, cast(char)octal);
+                continue;
+
+            case 'x':
+                enforce(i + 2 <= s.length, "Incomplete escape sequence: `\\" ~ s[esc .. $] ~ '`');
+                put(j++, cast(char)(
+                    interpretHexDigit(s[i]) << 4 | interpretHexDigit(s[i + 1])
+                ));
+                rawStart = i += 2;
+                continue;
+
+            case 'u':
+                enforce(i + 4 <= s.length, "Incomplete escape sequence: `\\" ~ s[esc .. $] ~ '`');
+                if (j + 3 > buffer.length)
+                    buffer.length <<= 1;
+                hiWord = 0x0;
+            takeUnicodeLoWord:
+                uni[0] =
+                    hiWord |
+                    interpretHexDigit(s[i])     << 12 |
+                    interpretHexDigit(s[i + 1]) << 8 |
+                    interpretHexDigit(s[i + 2]) << 4 |
+                    interpretHexDigit(s[i + 3]);
+                rawStart = i += 4;
+                enforce(isValidDchar(uni[0]), "Invalid Unicode character `\\" ~ s[esc .. i] ~ '`');
+                foreach (c1; uni[ ].byChar())
+                    buffer[j++] = c1;
+                continue;
+
+            case 'U':
+                enforce(i + 8 <= s.length, "Incomplete escape sequence: `\\" ~ s[esc .. $] ~ '`');
+                if (j + 4 > buffer.length)
+                    buffer.length <<= 1;
+                hiWord =
+                    interpretHexDigit(s[i])     << 28 |
+                    interpretHexDigit(s[i + 1]) << 24 |
+                    interpretHexDigit(s[i + 2]) << 20 |
+                    interpretHexDigit(s[i + 3]) << 16;
+                i += 4;
+                goto takeUnicodeLoWord;
+
+            default:
+                // Named character entities are not supported either.
+                throw new Exception("Invalid escape sequence `\\" ~ c ~ '`');
+            }
+        }
+
+        if (!rawStart)
+            return s[start .. end]; // No escape sequences - just return a slice of the input.
+        if (const len = end - rawStart) {
+            if (j + len > buffer.length)
+                buffer.length = j + len;
+            buffer[j .. j + len] = s[rawStart .. end];
+            j += len;
+        }
+        return buffer[0 .. j].idup;
     }
 
     _Token getNext() {
@@ -61,16 +196,24 @@ pure:
                 enforce(i != s.length && s[i++] == ']',
                     "Invalid character in section [" ~ capture ~ ']');
                 skipWhitespace();
-                enforce(i == s.length || s[i++] == '\n',
-                    "Extra text after section [" ~ capture ~ ']');
+                if (i != s.length) {
+                    const c = s[i++];
+                    enforce(c == '\n' || c == '\r', "Extra text after section [" ~ capture ~ ']');
+                }
                 return _Token(_Token.Type.section, capture);
 
             case ';':
+            case '#':
                 i++;
-                while (i != s.length && s[i++] != '\n') { }
+                while (i != s.length) {
+                    const c = s[i++];
+                    if (c == '\n' || c == '\r')
+                        break;
+                }
                 continue;
 
             case '\n':
+            case '\r':
                 i++;
                 continue;
 
@@ -173,7 +316,7 @@ CTIni!Spec _parse(Spec)(string source) {
     bool[ini._meta.totalKeys] set;
     size_t totalSet;
 
-    _Lexer lx = { 0, source };
+    _Lexer lx = { 0, source, new char[128] };
     while (true) {
         const token = lx.getNext();
         final switch (token.type) with (_Token.Type) {
