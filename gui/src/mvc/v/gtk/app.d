@@ -32,12 +32,9 @@ private final class _MyWindow: MainWindow {
     }
 
     this() {
-        import version_;
-
-        enum title = "Ren'Py translation updater (v" ~ programVersion ~ ')';
         enum height = 500;
         enum width = cast(int)(height * 1.618);
-        super(title);
+        super("");
         setSizeRequest(width, height);
         setBorderWidth(7);
 
@@ -106,6 +103,17 @@ final class GTKView: IView {
         return this;
     }
 
+    void updateStrings() {
+        import std.format: format;
+        import i18n: localize;
+        import version_;
+
+        _window.setTitle(localize!q{MainWindow.title}.format(programVersion));
+        _window.pathControls.updateStrings();
+        _window.languages.updateStrings();
+        _window.updateBtn.updateStrings();
+    }
+
     void update(ref const Model model) {
         _window.pathControls.setValues(model.renpySDKPath, model.projectPath);
         _window.languages.update(model.langs, model.busy);
@@ -124,8 +132,9 @@ final class GTKView: IView {
     private string _selectDirectory(string title, string initial) {
         import std.range.primitives: empty;
         import gtk.FileChooserDialog;
+        import i18n: localize;
 
-        string[1] buttonsText = ["Select"];
+        string[1] buttonsText = [localize!q{FileChooser.select}];
         ResponseType[1] responses = [ResponseType.ACCEPT];
         auto dlg = scoped!FileChooserDialog(
             title,

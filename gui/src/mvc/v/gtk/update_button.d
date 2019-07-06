@@ -22,10 +22,16 @@ final class UpdateButton: Box {
     this() {
         super(Orientation.HORIZONTAL, 12);
 
-        _btn = new Button("Update");
+        _btn = new Button("");
         _spinner = new Spinner;
         add(_btn);
         add(_spinner);
+    }
+
+    void updateStrings() {
+        import i18n: localize;
+
+        _btn.setLabel(localize!q{MainWindow.update});
     }
 
     override bool getSensitive() {

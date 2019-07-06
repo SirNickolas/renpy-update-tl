@@ -24,12 +24,15 @@ final class Controller: IViewListener {
     }
 
     private void _onProjectSelected(IView view, string newPath) {
+        import std.format: format;
+        import i18n: localize;
+
         if (newPath.empty)
             return;
         if (!_model.trySetProjectPath(newPath)) {
             view.showWarning(
-                "Error",
-                '"' ~ newPath ~ `" doesn’t look like a Ren'Py project directory.`,
+                localize!q{Errors.error},
+                localize!q{Errors.invalidProject}.format(newPath),
             );
             return;
         }
@@ -39,16 +42,20 @@ final class Controller: IViewListener {
     }
 
     void onBtnRenpySDKClick(IView view) {
+        import i18n: localize;
+
         view.selectDirectory(
-            "Select Ren'Py SDK directory",
+            localize!q{FileChooser.selectRenpySDK},
             _model.renpySDKPath,
             &_onRenpySDKSelected,
         );
     }
 
     void onBtnProjectClick(IView view) {
+        import i18n: localize;
+
         view.selectDirectory(
-            "Select project directory",
+            localize!q{FileChooser.selectProject},
             _model.projectPath,
             &_onProjectSelected,
         );
@@ -92,6 +99,7 @@ final class Controller: IViewListener {
     void onBtnUpdateClick(IView view) {
         import std.algorithm.iteration;
         import std.ascii: newline;
+        import i18n: MsgID, localize;
         import mvc.m.cli_runner;
 
         _model.removeInvalidLangs();
@@ -113,7 +121,7 @@ final class Controller: IViewListener {
                         if (output[$ - 1] != '\n')
                             view.appendToLog("\n");
                     }
-                    view.appendToLog(result.ok ? "Done.\n\n" : "Failed.\n\n");
+                    view.appendToLog(localize(result.ok ? MsgID.Output.done : MsgID.Output.failed));
 
                     _model.decRunning();
                     if (_model.projectNumber == projectNumber) {
@@ -125,7 +133,7 @@ final class Controller: IViewListener {
             });
             _model.incRunning();
             _model.busy = true;
-            view.appendToLog("Wait a few seconds, please...\n");
+            view.appendToLog(localize!q{Output.pleaseWait});
             view.startAsyncWatching();
         }
         view.update(*_model);

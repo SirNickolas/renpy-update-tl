@@ -20,6 +20,7 @@ import mvc.m.data: Lang;
 
 final class Languages: Box {
 private:
+    Frame _frame;
     Grid _grid;
     Button _btnAdd;
     uint _count;
@@ -43,12 +44,18 @@ private:
 
         _btnAdd = new Button;
         _btnAdd.setImage(createImageFromResource!`img/plus-12.png`());
-        _btnAdd.setTooltipText("Add a new language");
         _grid.attach(_btnAdd, 0, 0, 1, 1);
 
-        auto frame = new Frame(_grid, "Languages");
-        frame.setLabelAlign(.06, .5);
-        add(frame);
+        _frame = new Frame(_grid, "");
+        _frame.setLabelAlign(.06, .5);
+        add(_frame);
+    }
+
+    public void updateStrings() {
+        import i18n: localize;
+
+        _frame.setLabel(localize!q{MainWindow.languages});
+        _btnAdd.setTooltipText(localize!q{Tooltips.addLanguage});
     }
 
     int _getIndex(Widget widget, int column) {

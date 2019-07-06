@@ -52,14 +52,18 @@ pure:
         throw new Exception("Invalid hex digit `" ~ c ~ '`');
     }
 
-    string captureLine() {
+    string captureLine()
+    out (result) {
+        assert(result !is null);
+    }
+    do {
         import std.exception: enforce;
         import std.utf: byChar, isValidDchar;
 
         const start = i;
         size_t end = s.length;
         size_t j; // Index in `buffer`.
-        size_t rawStart; // Index in `s`.
+        size_t rawStart = start; // Index in `s`.
         uint hiWord, octal;
         dchar[1] uni;
         while (i != s.length) {
@@ -101,7 +105,7 @@ pure:
             case 't': put(j++, '\t'); break;
             case 'v': put(j++, '\v'); break;
 
-            case '0', '1', '2', '3':
+            case '0': .. case '3':
                 octal = c - '0';
                 if (i != s.length) {
                     uint c1 = s[i] - '0';
@@ -167,7 +171,7 @@ pure:
             }
         }
 
-        if (!rawStart)
+        if (rawStart == start)
             return s[start .. end]; // No escape sequences - just return a slice of the input.
         if (const len = end - rawStart) {
             if (j + len > buffer.length)
@@ -248,18 +252,18 @@ template _getMember(T) {
 
 alias _enumsOf(T) = Filter!(_isEnum, staticMap!(_getMember!T, __traits(allMembers, T)));
 
-enum _metaOf(UserSpec) = {
+enum _metaOf(Spec) = {
     import std.traits: EnumMembers;
 
     size_t totalKeys;
     _SectionMeta[string] sections;
     string[ ] qNames;
 
-    static foreach (E; _enumsOf!UserSpec) {{
+    static foreach (E; _enumsOf!Spec) {{
         static assert(E.min >= 0, "Enum `" ~ E.stringof ~ "` has negative values");
         static assert(E.max < uint.max, "Enum `" ~ E.stringof ~ "` has too large values");
 
-        const n = size_t(E.max) + 1;
+        enum n = size_t(E.max) + 1;
         qNames.length += n;
         _SectionMeta section = { totalKeys };
         static foreach (i, value; EnumMembers!E) {{
@@ -313,7 +317,6 @@ CTIni!Spec _parse(Spec)(string source) {
     immutable meta = ini._meta;
     immutable(_SectionMeta)* curSection;
     string curSectionName;
-    bool[ini._meta.totalKeys] set;
     size_t totalSet;
 
     _Lexer lx = { 0, source, new char[128] };
@@ -321,27 +324,25 @@ CTIni!Spec _parse(Spec)(string source) {
         const token = lx.getNext();
         final switch (token.type) with (_Token.Type) {
         case data:
-            enforce(curSection !is null, "Anonymous sections are not supported");
+            enforce(curSection !is null, "Unknown section [" ~ curSectionName ~ ']');
             if (const p = token.key in curSection.valueOffsets) {
                 const offset = *p;
-                enforce(!set[offset], meta.qualifiedNames[offset] ~ " is declared multiple times");
-                set[offset] = true;
+                enforce(ini._storage[offset] is null,
+                    meta.qualifiedNames[offset] ~ " is declared multiple times");
                 totalSet++;
                 ini._storage[offset] = token.value;
-            } else
-                throw new Exception("Unknown field [" ~ curSectionName ~ "]." ~ token.key);
+            }
             break;
 
         case section:
             curSectionName = token.key;
             curSection = curSectionName in meta.sections;
-            enforce(curSection !is null, "Unknown section [" ~ curSectionName ~ ']');
             break;
 
         case eof:
             if (totalSet != meta.totalKeys)
-                foreach (i, b; set[ ])
-                    enforce(b, meta.qualifiedNames[i] ~ " is not declared");
+                foreach (i, s; ini._storage[ ])
+                    enforce(s !is null, meta.qualifiedNames[i] ~ " is not declared");
             return ini;
         }
     }

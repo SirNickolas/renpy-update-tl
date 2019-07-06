@@ -23,6 +23,7 @@ int run(string[ ] args) {
     auto app = createApplication(args, model);
     auto ctrl = scoped!Controller(&model);
     app.setListener(ctrl);
+    app.updateStrings();
     app.update(model);
     return runApplication(app);
 }
