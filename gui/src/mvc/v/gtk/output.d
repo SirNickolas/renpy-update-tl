@@ -22,7 +22,9 @@ final class Output: ScrolledWindow {
         super(txt);
 
         txt.setVexpand(true);
-        txt.setSensitive(false);
+        txt.setEditable(false);
+        txt.setCursorVisible(false);
+        txt.setLeftMargin(4);
         _txtLog = txt;
     }
 
