@@ -3,6 +3,7 @@ module mvc.c;
 import std.range.primitives: empty;
 import std.typecons: Yes, No;
 
+import i18n: Language;
 import mvc.m.data;
 import mvc.v.iface;
 
@@ -15,6 +16,14 @@ final class Controller: IViewListener {
 
     this(Model* model) nothrow pure @safe @nogc {
         _model = model;
+    }
+
+    void onLanguageSelected(IView view, Language* language) {
+        import i18n: localize, setCurLanguage;
+
+        setCurLanguage(language);
+        _model.uiLanguage = localize!q{Meta.code};
+        view.updateStrings();
     }
 
     private void _onRenpySDKSelected(IView view, string newPath) {

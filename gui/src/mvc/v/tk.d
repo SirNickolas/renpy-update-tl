@@ -381,10 +381,10 @@ public Application createApplication(string[ ] args, ref const Model model) {
 }
 
 public void changeUILanguage(ref string code) nothrow @safe @nogc {
-    import i18n: MsgID, curLanguage, setCurLanguage;
+    import i18n: setCurLanguage, localize;
 
     setCurLanguage(code);
-    code = curLanguage[MsgID.Meta.code];
+    code = localize!q{Meta.code};
 }
 
 public int runApplication(Application app) {

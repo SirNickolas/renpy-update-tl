@@ -2,9 +2,12 @@ module mvc.v.iface;
 
 import std.typecons: Flag;
 
+import i18n: Language;
 import mvc.m.data: Model;
 
 interface IViewListener {
+    void onLanguageSelected(IView, Language*);
+
     void onBtnRenpySDKClick(IView);
     void onBtnProjectClick(IView);
     void onLangCheck(IView, size_t index, bool checked);

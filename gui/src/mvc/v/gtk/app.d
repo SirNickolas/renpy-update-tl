@@ -9,8 +9,10 @@ import gtk.Button;
 import gtk.Main;
 import gtk.MainWindow;
 
+import i18n: Language;
 import mvc.m.data: Model;
 import mvc.v.gtk.langs;
+import mvc.v.gtk.main_menu;
 import mvc.v.gtk.output;
 import mvc.v.gtk.path_controls;
 import mvc.v.gtk.update_button;
@@ -19,6 +21,7 @@ import mvc.v.iface;
 @system:
 
 private final class _MyWindow: MainWindow {
+    MainMenu menu;
     PathControls pathControls;
     Languages languages;
     UpdateButton updateBtn;
@@ -38,12 +41,14 @@ private final class _MyWindow: MainWindow {
         setSizeRequest(width, height);
         setBorderWidth(7);
 
+        menu = new MainMenu;
         pathControls = new PathControls;
         languages = new Languages;
         updateBtn = new UpdateButton;
         output = new Output;
 
         auto vbox = new Box(Orientation.VERTICAL, 5);
+        vbox.add(menu);
         vbox.add(pathControls);
         vbox.add(languages);
         vbox.add(updateBtn);
@@ -56,6 +61,11 @@ final class GTKView: IView {
     private {
         typeof(scoped!_MyWindow()) _window;
         IViewListener _listener;
+
+        void _hndLanguageSelected(Language* language) {
+            if (_listener !is null)
+                _listener.onLanguageSelected(this, language);
+        }
 
         void _hndBtnRenpySDKClick(Button _) {
             if (_listener !is null)
@@ -90,6 +100,7 @@ final class GTKView: IView {
 
     this() {
         _window = scoped!_MyWindow();
+        _window.menu.setOnLanguageSelected(&_hndLanguageSelected);
         _window.pathControls.addOnClicked(PathControl.renpySDK, &_hndBtnRenpySDKClick);
         _window.pathControls.addOnClicked(PathControl.project, &_hndBtnProjectClick);
         _window.languages.setOnClicked(&_hndLangCheck);
@@ -109,6 +120,7 @@ final class GTKView: IView {
         import version_;
 
         _window.setTitle(localize!q{MainWindow.title}.format(programVersion));
+        _window.menu.updateStrings();
         _window.pathControls.updateStrings();
         _window.languages.updateStrings();
         _window.updateBtn.updateStrings();
@@ -232,10 +244,10 @@ private void _detectLanguage(const(char)[ ] remembered) {
 }
 
 void changeUILanguage(ref string code) {
-    import i18n: MsgID, curLanguage;
+    import i18n: localize;
 
     _detectLanguage(code);
-    code = curLanguage[MsgID.Meta.code];
+    code = localize!q{Meta.code};
 }
 
 int runApplication(GTKView app) {

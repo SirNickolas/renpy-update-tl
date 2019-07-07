@@ -294,10 +294,10 @@ public MainWidget createApplication(string[ ] args, ref const Model model) {
 }
 
 public void changeUILanguage(ref string code) nothrow @safe @nogc {
-    import i18n: MsgID, curLanguage, setCurLanguage;
+    import i18n: localize, setCurLanguage;
 
     setCurLanguage(code);
-    code = curLanguage[MsgID.Meta.code];
+    code = localize!q{Meta.code};
 }
 
 public int runApplication(MainWidget widget) {

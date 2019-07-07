@@ -9,6 +9,10 @@ struct MsgID {
         code,
         name,
     }
+    enum Menu {
+        help,
+        about,
+    }
     enum MainWindow {
         title,
         renpySDKPath,
@@ -64,6 +68,15 @@ shared static this() @trusted {
     return *_curLanguage;
 }
 
+Language* setCurLanguage(Language* newLanguage) @nogc
+in {
+    assert(newLanguage !is null);
+}
+do {
+    _curLanguage = newLanguage;
+    return newLanguage;
+}
+
 Language* setCurLanguage(const(char)[ ] code) @nogc {
     if (immutable p = code in languageRegistry) {
         _curLanguage = *p;
@@ -78,4 +91,8 @@ string localize(E)(E key) @nogc if (is(E == enum)) {
 
 @property string localize(string key)() @nogc {
     return mixin(`localize(MsgID.` ~ key ~ `)`);
+}
+
+string localize(string key)(ref Language lang) @nogc {
+    return mixin(`lang[MsgID.` ~ key ~ `]`);
 }
