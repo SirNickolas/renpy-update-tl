@@ -14,7 +14,13 @@ final class MainMenu: MenuBar {
         MenuItem _help;
         MenuItem _about;
         MenuItem[ ] _langItems;
+        void delegate() @system _onAboutSelected;
         void delegate(Language*) @system _onLanguageSelected;
+
+        void _hndOnAboutSelected(MenuItem _) {
+            if (_onAboutSelected !is null)
+                _onAboutSelected();
+        }
 
         Language* _findLanguage(MenuItem item) nothrow @safe @nogc {
             import std.algorithm.searching: find;
@@ -44,7 +50,7 @@ final class MainMenu: MenuBar {
         _help.setSubmenu(sub);
         append(_help);
 
-        _about = new MenuItem;
+        _about = new MenuItem(&_hndOnAboutSelected, "");
         sub.append(_about);
 
         sub = append("Language");
@@ -61,6 +67,10 @@ final class MainMenu: MenuBar {
 
         _help.setLabel(localize!q{Menu.help});
         _about.setLabel(localize!q{Menu.about});
+    }
+
+    void setOnAboutSelected(void delegate() @system dg) {
+        _onAboutSelected = dg;
     }
 
     void setOnLanguageSelected(void delegate(Language*) @system dg) {

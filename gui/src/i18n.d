@@ -37,6 +37,10 @@ struct MsgID {
         done,
         failed,
     }
+    enum About {
+        title,
+        text,
+    }
 }
 
 alias Language = immutable CTIni!MsgID;

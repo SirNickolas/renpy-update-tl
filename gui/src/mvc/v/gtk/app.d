@@ -62,6 +62,25 @@ final class GTKView: IView {
         typeof(scoped!_MyWindow()) _window;
         IViewListener _listener;
 
+        void _hndAboutSelected() {
+            import std.format: format;
+            import gtk.MessageDialog;
+            import i18n: localize;
+            import version_;
+
+            auto dlg = scoped!MessageDialog(
+                _window,
+                DialogFlags.DESTROY_WITH_PARENT,
+                MessageType.INFO,
+                ButtonsType.CLOSE,
+                true,
+                localize!q{About.text}.format(programVersion),
+            );
+            scope(exit) dlg.destroy();
+            dlg.setTitle(localize!q{About.title});
+            dlg.run();
+        }
+
         void _hndLanguageSelected(Language* language) {
             if (_listener !is null)
                 _listener.onLanguageSelected(this, language);
@@ -100,6 +119,7 @@ final class GTKView: IView {
 
     this() {
         _window = scoped!_MyWindow();
+        _window.menu.setOnAboutSelected(&_hndAboutSelected);
         _window.menu.setOnLanguageSelected(&_hndLanguageSelected);
         _window.pathControls.addOnClicked(PathControl.renpySDK, &_hndBtnRenpySDKClick);
         _window.pathControls.addOnClicked(PathControl.project, &_hndBtnProjectClick);
@@ -115,11 +135,9 @@ final class GTKView: IView {
     }
 
     void updateStrings() {
-        import std.format: format;
         import i18n: localize;
-        import version_;
 
-        _window.setTitle(localize!q{MainWindow.title}.format(programVersion));
+        _window.setTitle(localize!q{MainWindow.title});
         _window.menu.updateStrings();
         _window.pathControls.updateStrings();
         _window.languages.updateStrings();
