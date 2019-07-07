@@ -35,11 +35,13 @@ private final class _MyWindow: MainWindow {
     }
 
     this() {
+        import mvc.v.gtk.res;
+
         enum height = 500;
         enum width = cast(int)(height * 1.618);
         super("");
+        setIcon(createPixbufFromResource!`img/ab.png`());
         setSizeRequest(width, height);
-        setBorderWidth(7);
 
         menu = new MainMenu;
         pathControls = new PathControls;
@@ -48,6 +50,9 @@ private final class _MyWindow: MainWindow {
         output = new Output;
 
         auto vbox = new Box(Orientation.VERTICAL, 5);
+        vbox.setMarginLeft(7);
+        vbox.setMarginRight(7);
+        vbox.setMarginBottom(7);
         vbox.add(menu);
         vbox.add(pathControls);
         vbox.add(languages);

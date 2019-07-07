@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <gresources>
   <gresource prefix="/io/github/SirNickolas/renpy-update-tl">
+    <file>img/ab.png</file>
     <file>img/plus-12.png</file>
   </gresource>
 </gresources>

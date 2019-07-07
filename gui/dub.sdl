@@ -13,6 +13,10 @@ stringImportPaths "views" "../views"
 targetType "executable"
 targetName "renpy-update-tl-gui"
 
+// http://godevtool.com/ResourceFrame.htm
+preBuildCommands "cd res && GoRC /ni /r main.rc" platform="windows"
+sourceFiles "res/main.res" platform="windows"
+
 configuration "gtk" {
     versions "GTKApplication"
     libs "gtkd"
