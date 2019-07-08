@@ -42,10 +42,13 @@ const(char)[ ] _extractBlockID(const(char)[ ] line) @nogc {
 }
 
 const(char)[ ] _extractDialogueNewText(const(char)[ ] line) @nogc {
-    // ^(\w*\s*".*?)\s*$
+    // ^((?:\w*\s*"|nvl\b).*?)\s*$
     auto s = line.byCodeUnit();
-    if (!s.stripLeft!isCIdent().stripLeft!isWhite().startsWith('"'))
-        return null;
+    if (!s.stripLeft!isCIdent().stripLeft!isWhite().startsWith('"')) {
+        auto t = s;
+        if (!t.skipOver("nvl".byCodeUnit()) || t.startsWith!isCIdent())
+            return null;
+    }
     return s.stripRight!isWhite().source;
 }
 

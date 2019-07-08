@@ -30,6 +30,7 @@ bool _isBlankPara(const(char)[ ] text) @nogc {
     import std.utf: byCodeUnit;
 
     return text.lineSplitter().all!((line) {
+        // ^\s*(?:$|#\s*(?:$|TODO: ))
         auto s = line.byCodeUnit().stripLeft!isWhite();
         if (s.empty)
             return true;

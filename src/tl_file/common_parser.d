@@ -30,14 +30,16 @@ package bool isDialogueID(const(char)[ ] id) {
 }
 
 const(char)[ ] _extractDialogueOldText(return const(char)[ ] line) {
-    // ^#\s*(\w*\s*".*?)\s*$
+    // ^#\s*((?:\w*\s*"|nvl\b).*?)\s*$
     auto s = line.byCodeUnit();
     if (!s.skipOver('#'))
         return null;
     s.skipOver!isWhite();
-    auto t = s.stripLeft!isCIdent().stripLeft!isWhite();
-    if (!t.startsWith('"'))
-        return null;
+    if (!s.stripLeft!isCIdent().stripLeft!isWhite().startsWith('"')) {
+        auto t = s;
+        if (!t.skipOver("nvl".byCodeUnit()) || t.startsWith!isCIdent())
+            return null;
+    }
     return s.stripRight!isWhite().source;
 }
 
