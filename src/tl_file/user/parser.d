@@ -11,17 +11,6 @@ import utils: isCIdent;
 
 private nothrow pure @safe:
 
-enum _State: ubyte {
-    fileSummary,
-    afterLocation,
-    dialogueBlock0, // Before old text.
-    dialogueBlock1, // After old text.
-    plainString0, // After the header.
-    plainString1, // After location, before old text.
-    plainString2, // After old text.
-    unrecognizedBlock,
-}
-
 bool _isLocation(const(char)[ ] line) @nogc {
     import std.ascii: isDigit;
 
@@ -183,294 +172,218 @@ public Declarations parse(string source, const(char)[ ] lang) {
 
     auto blocks = appender!(Block[ ]);
     auto plainStrings = appender!(PlainString[ ]);
+    auto lines = source.lineSplitter();
     auto fileSummary = expander(source);
-    auto summary = expander(source);
-    auto acc0 = expander(source);
-    auto acc1 = expander(source);
-    auto lastBlock = expander(source);
-    auto lastPlainString = expander(source);
-    string labelAndHash, oldText;
 
-    auto state = _State.fileSummary;
-    _Line ln;
-    foreach (line; source.lineSplitter())
-        theSwitch: final switch (state) {
-        case _State.fileSummary: // At the very beginning of the file.
-            ln = _parseLine!q{location, blockHeader}(line, lang);
-            switch (ln.type) with (_Line.Type) {
-            case location: // -> afterLocation
-                state = _State.afterLocation;
-                break;
-            case dialogueBlockHeader: // -> dialogueBlock0
-                state = _State.dialogueBlock0;
-                labelAndHash = ln.value1;
-                break;
-            case stringsBlockHeader: // -> plainString0
-                state = _State.plainString0;
-                break;
-            case unrecognizedBlockHeader: // Included in the file summary.
-            case other:
-                fileSummary.expandTo(line);
-                break theSwitch;
-            default:
-                assert(false);
-            }
-
-            lastBlock.reset(line);
-            break theSwitch;
-
-        case _State.afterLocation:
-            ln = _parseLine!q{blockHeader}(line, lang);
-            switch (ln.type) with (_Line.Type) {
-            case dialogueBlockHeader: // -> dialogueBlock0
-                state = _State.dialogueBlock0;
-                labelAndHash = ln.value1;
-                break theSwitch;
-            case stringsBlockHeader: // -> plainString0
-                state = _State.plainString0;
-                acc0 = summary;
-                summary.reset();
-                break theSwitch;
-            case unrecognizedBlockHeader:
-            case other:
-                break;
-            default:
-                assert(false);
-            }
-
-            summary.expandTo(line);
-            if (!_isBlankLine(line)) {
-                // -> unrecognizedBlock
-                state = _State.unrecognizedBlock;
-                acc0 = summary;
-                acc0.expandTo(line);
-                summary.reset();
-            }
-            break theSwitch;
-
-        case _State.dialogueBlock0: // After the header, before old text.
-            ln = _parseLine!q{indented|dialogueOld, location, blockHeader}(line, lang);
-            switch (ln.type) with (_Line.Type) {
-            case dialogueOld: // -> dialogueBlock1
-                oldText = ln.value0;
-                state = _State.dialogueBlock1;
-                break theSwitch;
-            case location: // -> afterLocation
-                state = _State.afterLocation;
-                break;
-            case dialogueBlockHeader:
-                labelAndHash = ln.value1;
-                break;
-            case stringsBlockHeader: // -> plainString0
-                state = _State.plainString0;
-                break;
-            case unrecognizedBlockHeader: // -> unrecognizedBlock
-                state = _State.unrecognizedBlock;
-                goto case;
-            case other:
-                acc0.expandTo(line);
-                break theSwitch;
-            default:
-                assert(false);
-            }
-
-            if (!acc0.get.byCodeUnit().all!isWhite()) {
-                assert(!lastBlock.get.empty);
-                lastBlock.expandTo(acc0.get);
-                blocks ~= makeUnrecognizedBlock(lastBlock.get);
-            }
-            acc0.reset();
-            lastBlock.reset(line);
-            break theSwitch;
-
-        case _State.dialogueBlock1: // After old text.
-            ln = _parseLine!q{location, blockHeader}(line, lang);
-            switch (ln.type) with (_Line.Type) {
-            case location: // -> afterLocation
-                state = _State.afterLocation;
-                break;
-            case dialogueBlockHeader: // -> dialogueBlock0
-                state = _State.dialogueBlock0;
-                break;
-            case stringsBlockHeader: // -> plainString0
-                state = _State.plainString0;
-                break;
-            case unrecognizedBlockHeader: // -> unrecognizedBlock
-                state = _State.unrecognizedBlock;
-                break;
-            case other:
-                acc1.expandTo(line);
-                break theSwitch;
-            default:
-                assert(false);
-            }
-
-            blocks ~= makeDialogueBlock(summary.get, labelAndHash, acc0.get, oldText, acc1.get);
-            summary.reset();
-            if (ln.type == _Line.Type.unrecognizedBlockHeader)
-                acc0.reset(line);
-            else {
-                acc0.reset();
-                lastBlock.reset(line);
-                if (ln.type == _Line.Type.dialogueBlockHeader)
-                    labelAndHash = ln.value1;
-            }
-            acc1.reset();
-            oldText = null;
-            break theSwitch;
-
-        case _State.plainString0: // After the header, before location.
-            ln = _parseLine!q{indented|location, indented|plainStringOld, blockHeader}(line, lang);
-            switch (ln.type) with (_Line.Type) {
-            case location: // -> plainString1
-                state = _State.plainString1;
-                break;
-            case plainStringOld: // -> plainString2
-                oldText = ln.value0;
-                state = _State.plainString2;
-                break;
-            case dialogueBlockHeader: // -> dialogueBlock0
-                state = _State.dialogueBlock0;
-                labelAndHash = ln.value1;
-                break;
-            case stringsBlockHeader:
-                break;
-            case unrecognizedBlockHeader: // -> unrecognizedBlock
-                state = _State.unrecognizedBlock;
-                assert(!lastBlock.get.empty);
-                acc0 = lastBlock;
-                goto case;
-            case other:
-                acc0.expandTo(line);
-                break theSwitch;
-            default:
-                assert(false);
-            }
-
-            if (!acc0.get.byCodeUnit().all!isWhite())
-                blocks ~= makeUnrecognizedBlock(acc0.get);
-            acc0.reset();
-            lastPlainString.reset(line);
-            break theSwitch;
-
-        case _State.plainString1: // After location, before old text.
-            ln = _parseLine!q{indented|plainStringOld, blockHeader}(line, lang);
-            switch (ln.type) with (_Line.Type) {
-            case plainStringOld: // -> plainString2
-                oldText = ln.value0;
-                state = _State.plainString2;
-                break theSwitch;
-            case dialogueBlockHeader: // -> dialogueBlock0
-                state = _State.dialogueBlock0;
-                labelAndHash = ln.value1;
-                break;
-            case stringsBlockHeader: // -> plainString0
-                state = _State.plainString0;
-                break;
-            case unrecognizedBlockHeader: // -> unrecognizedBlock
-                state = _State.unrecognizedBlock;
-                goto case;
-            case other:
-                acc0.expandTo(line);
-                break theSwitch;
-            default:
-                assert(false);
-            }
-
-            if (!acc0.get.byCodeUnit().all!isWhite())
-                blocks ~= makeUnrecognizedBlock(acc0.get);
-            acc0.reset();
-            break theSwitch;
-
-        case _State.plainString2: // After old text.
-            ln = _parseLine!q{indented|location, indented|plainStringOld, blockHeader}(line, lang);
-            switch (ln.type) with (_Line.Type) {
-            case location: // -> plainString1 | afterLocation
-                state = isWhite(line[0]) ? _State.plainString1 : _State.afterLocation;
-                break;
-            case plainStringOld:
-                break;
-            case dialogueBlockHeader: // -> dialogueBlock0
-                state = _State.dialogueBlock0;
-                labelAndHash = ln.value1;
-                break;
-            case stringsBlockHeader: // -> plainString0
-                state = _State.plainString0;
-                break;
-            case unrecognizedBlockHeader: // -> unrecognizedBlock
-                state = _State.unrecognizedBlock;
-                break;
-            case other:
-                acc1.expandTo(line);
-                break theSwitch;
-            default:
-                assert(false);
-            }
-
-            plainStrings ~= makePlainString(acc0.get, oldText, acc1.get);
-            acc0.reset();
-            acc1.reset();
-            if (ln.type == _Line.Type.plainStringOld)
-                oldText = ln.value0;
-            else {
-                oldText = null;
-                if (ln.type == _Line.Type.unrecognizedBlockHeader)
-                    acc0.expandTo(line);
-            }
-            lastPlainString.reset(line);
-            break theSwitch;
-
-        case _State.unrecognizedBlock:
-            ln = _parseLine!q{location, blockHeader}(line, lang);
-            switch (ln.type) with (_Line.Type) {
-            case location: // -> afterLocation
-                state = _State.afterLocation;
-                break;
-            case dialogueBlockHeader: // -> dialogueBlock0
-                state = _State.dialogueBlock0;
-                labelAndHash = ln.value1;
-                break;
-            case stringsBlockHeader: // -> plainString0
-                state = _State.plainString0;
-                break;
-            case unrecognizedBlockHeader:
-            case other:
-                acc0.expandTo(line);
-                break theSwitch;
-            default:
-                assert(false);
-            }
-
-            blocks ~= makeUnrecognizedBlock(acc0.get);
-            acc0.reset();
-            break theSwitch;
+summaryLoop:
+    while (!lines.empty) {
+        const line = lines.front;
+        switch (_parseLine!q{location, blockHeader}(line, lang).type) with (_Line.Type) {
+        case location, dialogueBlockHeader, stringsBlockHeader:
+            break summaryLoop;
+        case unrecognizedBlockHeader, other:
+            fileSummary.expandTo(line);
+            lines.popFront();
+            continue;
+        default:
+            assert(false);
         }
+    }
 
-    final switch (state) with (_State) {
-    case fileSummary:
-        break;
+    auto unrecognized = expander(source);
+    _Line ln;
+theLoop:
+    while (true) {
+        // `unrecognized` may already be set; expand it further.
+    unrecognizedLoop:
+        while (!lines.empty) {
+            const line = lines.front;
+            ln = _parseLine!q{location, blockHeader}(line, lang);
+            switch (ln.type) with (_Line.Type) {
+            case location, dialogueBlockHeader, stringsBlockHeader:
+                break unrecognizedLoop;
+            case unrecognizedBlockHeader, other:
+                unrecognized.expandTo(line);
+                lines.popFront();
+                continue;
+            default:
+                assert(false);
+            }
+        }
+        if (!unrecognized.get.byCodeUnit().all!isWhite())
+            blocks ~= makeUnrecognizedBlock(unrecognized.get);
+        unrecognized.reset();
+        if (lines.empty)
+            break theLoop;
 
-    case afterLocation:
-    case dialogueBlock0:
-    case plainString0:
-        blocks ~= makeUnrecognizedBlock(lastBlock.get);
-        break;
+        const blockStart = lines.front;
+        auto summary = expander(source);
+        switch (ln.type) {
+            case _Line.Type.location: {
+                lines.popFront();
+                // Block summary (comments after location).
+                while (true) {
+                    if (lines.empty) {
+                        unrecognized.reset(blockStart);
+                        unrecognized.expandTo(summary.get);
+                        continue theLoop;
+                    }
+                    const line = lines.front;
+                    if (!_isBlankLine(line))
+                        break;
+                    summary.expandTo(line);
+                    lines.popFront();
+                }
+                // Dialogue block header.
+                ln = _parseLine!q{blockHeader}(lines.front, lang);
+                if (ln.type != _Line.Type.dialogueBlockHeader) {
+                    unrecognized.reset(blockStart);
+                    unrecognized.expandTo(summary.get);
+                    continue theLoop;
+                }
+                goto case;
+            }
+            case _Line.Type.dialogueBlockHeader: {
+                const labelAndHash = ln.value1;
+                string contents0LastLine = lines.front;
+                lines.popFront();
 
-    case dialogueBlock1:
-        blocks ~= makeDialogueBlock(summary.get, labelAndHash, acc0.get, oldText, acc1.get);
-        break;
+                auto contents0 = expander(source);
+            dialogueContents0Loop:
+                while (true) {
+                    if (lines.empty) {
+                        unrecognized.reset(blockStart);
+                        unrecognized.expandTo(contents0LastLine);
+                        continue theLoop;
+                    }
+                    const line = contents0LastLine = lines.front;
+                    ln = _parseLine!q{indented|dialogueOld, location, blockHeader}(line, lang);
+                    switch (ln.type) with (_Line.Type) {
+                    case dialogueOld:
+                        break dialogueContents0Loop;
+                    case other:
+                        break;
+                    case dialogueBlockHeader, stringsBlockHeader, unrecognizedBlockHeader:
+                        unrecognized.reset(blockStart);
+                        unrecognized.expandTo(contents0LastLine);
+                        continue theLoop;
+                    default:
+                        assert(false);
+                    }
+                    contents0.expandTo(line);
+                    lines.popFront();
+                }
+                const oldText = ln.value0;
 
-    case plainString1:
-        blocks ~= makeUnrecognizedBlock(lastPlainString.get);
-        break;
+                auto contents1 = expander(source);
+                while (true) {
+                    lines.popFront();
+                    if (lines.empty)
+                        break;
+                    const line = lines.front;
+                    ln = _parseLine!q{location, blockHeader}(line, lang);
+                    if (ln.type != _Line.Type.other)
+                        break;
+                    contents1.expandTo(line);
+                }
 
-    case plainString2:
-        plainStrings ~= makePlainString(acc0.get, oldText, acc1.get);
-        break;
+                blocks ~= makeDialogueBlock(
+                    summary.get,
+                    labelAndHash,
+                    contents0.get,
+                    oldText,
+                    contents1.get,
+                );
+                continue theLoop;
+            }
 
-    case unrecognizedBlock:
-        blocks ~= makeUnrecognizedBlock(acc0.get);
-        break;
+            case _Line.Type.stringsBlockHeader: {
+                lines.popFront();
+                // Blank lines between the block header and the first location.
+                while (true) {
+                    if (lines.empty) {
+                        unrecognized.reset(blockStart);
+                        continue theLoop;
+                    }
+                    if (!lines.front.byCodeUnit().all!isWhite())
+                        break;
+                    lines.popFront();
+                }
+
+                do {
+                    string line = lines.front;
+                    const pairStart = line;
+                    if (_parseLine!q{indented|location}(line, lang).type == _Line.Type.location) {
+                        if (!isWhite(line[0]))
+                            continue theLoop;
+                        lines.popFront();
+                        if (lines.empty)
+                            continue theLoop;
+                        line = lines.front;
+                    }
+
+                    auto contents0 = expander(source);
+                plainStringContents0Loop:
+                    while (true) {
+                        ln = _parseLine!q{indented|plainStringOld, location, blockHeader}(
+                            line, lang,
+                        );
+                        switch (ln.type) with (_Line.Type) {
+                        case plainStringOld:
+                            break plainStringContents0Loop;
+                        case other:
+                            break;
+                        case location:
+                        case dialogueBlockHeader, stringsBlockHeader, unrecognizedBlockHeader:
+                            if (!contents0.get.empty) {
+                                unrecognized.reset(pairStart);
+                                unrecognized.expandTo(contents0.get);
+                            }
+                            continue theLoop;
+                        default:
+                            assert(false);
+                        }
+                        contents0.expandTo(line);
+                        lines.popFront();
+                        if (lines.empty) {
+                            unrecognized.reset(pairStart);
+                            unrecognized.expandTo(contents0.get);
+                            continue theLoop;
+                        }
+                        line = lines.front;
+                    }
+                    const oldText = ln.value0;
+
+                    auto contents1 = expander(source);
+                plainStringContents1Loop:
+                    while (true) {
+                        lines.popFront();
+                        if (lines.empty)
+                            break plainStringContents1Loop;
+                        line = lines.front;
+                        ln = _parseLine!q{indented|location, indented|plainStringOld, blockHeader}(
+                            line, lang,
+                        );
+                        switch (ln.type) with (_Line.Type) {
+                        case location, plainStringOld:
+                        case dialogueBlockHeader, stringsBlockHeader, unrecognizedBlockHeader:
+                            break plainStringContents1Loop;
+                        case other:
+                            break;
+                        default:
+                            assert(false);
+                        }
+                        contents1.expandTo(line);
+                    }
+
+                    plainStrings ~= makePlainString(contents0.get, oldText, contents1.get);
+                } while (!lines.empty);
+                continue theLoop;
+            }
+
+            default: assert(false);
+        }
+        assert(false);
     }
 
     return Declarations(fileSummary.get.stripBlankLines(), blocks.data, plainStrings.data);
