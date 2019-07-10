@@ -50,8 +50,11 @@ $(DLLS): $(GUI)
 gtkdist: $(DLLS)
 	scripts/cpgtk.sh $(BUILD)/$(NAME)/ $^
 
-build: $(CLI) $(GUI) $(WINDEPS)
-	cp -r $(CLI) $(GUI) $(BIN)/
+$(BUILD)/$(NAME)/LICENSE: LICENSE
+	mkdir -p $(@D) && cp $^ $@
+
+build: $(CLI) $(GUI) $(BUILD)/$(NAME)/LICENSE $(WINDEPS)
+	cp $(CLI) $(GUI) $(BIN)/
 
 $(ARCHIVE): build
 	cd $(@D) && $(7Z) a -uq0z1 $(@F) $(NAME)/ >/dev/null
