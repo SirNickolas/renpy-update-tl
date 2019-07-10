@@ -211,8 +211,7 @@ nothrow pure:
         foreach (b; d.blocks) {
             if (nl)
                 write(newline);
-            else
-                nl = true;
+            const streamPos = o.data.length;
             b.match!(
                 (tlm.Matched b) => ud.blocks[b.uIndex].match!(
                     (ref const tlu.DialogueBlock u) =>
@@ -232,6 +231,7 @@ nothrow pure:
                 ),
                 (tlm.New _) => emit(gd.dialogueBlocks[i++]),
             );
+            nl = o.data.length != streamPos;
         }
         assert(i == gd.dialogueBlocks.length);
 
@@ -239,9 +239,7 @@ nothrow pure:
         if (d.plainStrings.empty)
             return;
         i = 0;
-        if (nl)
-            write(newline);
-        write(`translate `, lang, _ct!(` strings:` ~ newline));
+        write(nl ? _ct!(newline ~ `translate `) : `translate `, lang, _ct!(` strings:` ~ newline));
         foreach (ps; d.plainStrings)
             ps.match!(
                 (tlm.Matched ps) =>
