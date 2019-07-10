@@ -1,6 +1,4 @@
 /views/*.gresource
-/library/
-/ui.log
 /renpy-update-tl-gui
 /*.exe
 /*.a

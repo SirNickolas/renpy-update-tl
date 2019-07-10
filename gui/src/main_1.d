@@ -8,8 +8,6 @@ int run(string[ ] args) {
     import mvc.c;
     version (GTKApplication)
         import mvc.v.gtk.app;
-    else version (TkApplication)
-        import mvc.v.tk;
     else
         static assert(false, "Unknown GUI backend");
 
