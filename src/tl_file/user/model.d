@@ -14,8 +14,11 @@ struct DialogueBlock {
     string summary; // After location.
     string labelAndHash;
     string contents0;
+    string oldVoice;
     string oldText;
     string contents1;
+    string newVoice;
+    string contents2;
     TranslationState state;
 }
 

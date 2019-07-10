@@ -5,6 +5,7 @@ nothrow pure @safe @nogc:
 struct DialogueBlock {
     string location;
     string labelAndHash;
+    string oldVoice;
     string oldText;
     string newText;
 }

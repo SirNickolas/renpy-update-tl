@@ -168,6 +168,7 @@ public Declarations parse(string source, const(char)[ ] lang) {
     import std.string: lineSplitter;
 
     import slice_expander: expander;
+    import tl_file.common_parser: isDialogueVoice;
     import tl_file.user.builder;
 
     auto blocks = appender!(Block[ ]);
@@ -273,26 +274,62 @@ theLoop:
                     contents0.expandTo(line);
                     lines.popFront();
                 }
-                const oldText = ln.value0;
+                string oldVoice, oldText;
+                lines.popFront();
+                if (lines.empty || !isDialogueVoice(ln.value0))
+                    oldText = ln.value0;
+                else {
+                    oldVoice = ln.value0;
+                    ln = _parseLine!q{indented|dialogueOld}(lines.front, lang);
+                    if (ln.type == _Line.Type.dialogueOld) {
+                        oldText = ln.value0;
+                        lines.popFront();
+                    } else {
+                        // Voice without text.
+                        oldText = oldVoice;
+                        oldVoice = null;
+                    }
+                }
 
                 auto contents1 = expander(source);
-                while (true) {
-                    lines.popFront();
-                    if (lines.empty)
-                        break;
+                auto contents2 = expander(source);
+                string newVoice;
+                if (!oldVoice.empty)
+                    while (!lines.empty) {
+                        const line = lines.front;
+                        ln = _parseLine!q{location, blockHeader}(line, lang);
+                        if (ln.type != _Line.Type.other) {
+                            contents2 = contents1;
+                            contents1.reset();
+                            break;
+                        }
+                        const s = line.byCodeUnit().stripLeft!isWhite().source;
+                        lines.popFront();
+                        if (isDialogueVoice(s)) {
+                            newVoice = s;
+                            break;
+                        }
+                        contents1.expandTo(line);
+                    }
+
+                while (!lines.empty) {
                     const line = lines.front;
                     ln = _parseLine!q{location, blockHeader}(line, lang);
                     if (ln.type != _Line.Type.other)
                         break;
-                    contents1.expandTo(line);
+                    contents2.expandTo(line);
+                    lines.popFront();
                 }
 
                 blocks ~= makeDialogueBlock(
                     summary.get,
                     labelAndHash,
                     contents0.get,
+                    oldVoice,
                     oldText,
                     contents1.get,
+                    newVoice,
+                    contents2.get,
                 );
                 continue theLoop;
             }

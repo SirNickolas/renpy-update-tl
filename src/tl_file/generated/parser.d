@@ -62,8 +62,7 @@ public Declarations parse(const(char)[ ] source) {
     auto plainStrings = appender!(PlainString[ ]);
     StringInterner interner;
 
-    string labelAndHash;
-    const(char)[ ] location, oldText;
+    const(char)[ ] labelAndHash, location, oldVoice, oldText;
     bool parsingPlainStrings;
     foreach (line; source.lineSplitter()) {
         if (line.empty)
@@ -74,20 +73,33 @@ public Declarations parse(const(char)[ ] source) {
         else if (const s = _extractBlockID(line)) {
             parsingPlainStrings = s == "strings";
             if (!parsingPlainStrings && isDialogueID(s))
-                labelAndHash = s.idup;
+                labelAndHash = s;
         } else if (!parsingPlainStrings) {
             if (const s = extractDialogueOldText(line))
-                oldText = s;
-            else if (!labelAndHash.empty && !oldText.empty)
+                if (isDialogueVoice(s))
+                    oldVoice = s;
+                else
+                    oldText = s;
+            else if (!labelAndHash.empty && (!oldVoice.empty || !oldText.empty))
                 if (const newText = _extractDialogueNewText(line)) {
+                    if (oldText.empty) {
+                        // Voice without text.
+                        oldText = oldVoice;
+                        oldVoice = null;
+                    } else if (isDialogueVoice(newText))
+                        continue;
                     dialogueBlocks ~= DialogueBlock(
-                        location.idup, labelAndHash, oldText.idup, interner.intern(newText),
+                        location.idup,
+                        labelAndHash.idup,
+                        oldVoice.idup,
+                        oldText.idup,
+                        interner.intern(newText),
                     );
-                    location = oldText = null;
+                    location = oldVoice = oldText = null;
                 }
         } else if (const s = extractPlainStringOldText(line)) {
             plainStrings ~= PlainString(location.idup, s.idup);
-            location = oldText = null;
+            location = oldVoice = oldText = null;
         }
     }
 

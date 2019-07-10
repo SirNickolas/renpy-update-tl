@@ -2,6 +2,7 @@ module tl_file.merged.emitter;
 
 import std.array: Appender;
 import std.ascii: newline;
+import std.range.primitives: empty;
 import std.typecons: Flag, Yes, No;
 
 import tlg = tl_file.generated.model;
@@ -55,14 +56,11 @@ nothrow pure:
     }
 
     void writePara(const(char)[ ] text) {
-        import std.range.primitives: empty;
-
         if (!text.empty)
             write(text, newline);
     }
 
     void writeParaCommented(const(char)[ ] text) {
-        import std.range.primitives: empty;
         import std.string: lineSplitter;
 
         foreach (line; text.lineSplitter())
@@ -80,15 +78,14 @@ nothrow pure:
         writePara(u.summary);
         write(`translate `, lang, ` `, g.labelAndHash, _ct!(':' ~ newline ~ newline));
         writePara(u.contents0);
+        if (!g.oldVoice.empty)
+            write(`    # `, g.oldVoice, newline);
         write(`    # `, g.oldText, newline);
+        string newText;
         if (!exact)
             final switch (u.state) with (tlu.TranslationState) {
-            case blank:
-                write(`    `, g.newText, newline);
-                return;
-            case identical:
-                write(`    `, g.oldText, newline);
-                return;
+            case blank:     newText = g.newText; break;
+            case identical: newText = g.oldText; break;
             case translated:
                 write(
                     `    # `, u.oldText,
@@ -97,20 +94,34 @@ nothrow pure:
                 break;
             }
         writePara(u.contents1);
+        // If voice has been translated, keep the translated version. Otherwise, silently update.
+        const newVoice = u.newVoice != u.oldVoice ? u.newVoice : g.oldVoice;
+        if (!newVoice.empty)
+            write(`    `, newVoice, newline);
+        if (!newText.empty)
+            write(`    `, newText, newline);
+        else
+            writePara(u.contents2);
     }
 
     void emitOutdated(ref const tlu.DialogueBlock u) {
         if (u.state != tlu.TranslationState.translated &&
-            _isBlankPara(u.summary) && _isBlankPara(u.contents0)
+            _isBlankPara(u.summary) && _isBlankPara(u.contents0) && _isBlankPara(u.contents1)
         )
             return; // There was no translation; delete this block.
+
         // We've lost location. Do we care about it much?..
         write(_ct!(`# TODO: OUTDATED; delete these lines when no longer needed.` ~ newline));
         writeParaCommented(u.summary);
         write(`# translate `, lang, ` `, u.labelAndHash, _ct!(':' ~ newline ~ '#' ~ newline));
         writeParaCommented(u.contents0);
+        if (!u.oldVoice.empty)
+            write(`#     # `, u.oldVoice, newline);
         write(`#     # `, u.oldText, newline);
         writeParaCommented(u.contents1);
+        if (!u.newVoice.empty)
+            write(`#     `, u.newVoice, newline);
+        writeParaCommented(u.contents2);
     }
 
     void emit(ref const tlu.UnrecognizedBlock u) {
@@ -118,13 +129,19 @@ nothrow pure:
     }
 
     void emit(ref const tlg.DialogueBlock g) {
+        const hasVoice = !g.oldVoice.empty;
         write(
             `# `, g.location, _ct!(newline ~
             `# TODO: NEW.` ~ newline ~
             `translate `), lang, ` `, g.labelAndHash, _ct!(':' ~ newline ~ newline ~
-            `    # `), g.oldText, _ct!(newline ~
-            `    `), g.newText, newline,
+            `    # `),
         );
+        if (hasVoice)
+            write(g.oldVoice, _ct!(newline ~ `    # `));
+        write(g.oldText, _ct!(newline ~ `    `));
+        if (hasVoice)
+            write(g.oldVoice, _ct!(newline ~ `    `));
+        write(g.newText, newline);
     }
 
     /+
@@ -154,6 +171,7 @@ nothrow pure:
     void emitOutdated(ref const tlu.PlainString u) {
         if (u.state != tlu.TranslationState.translated && _isBlankPara(u.contents0))
             return; // There was no translation; delete this pair.
+
         // We've lost location. Do we care about it much?..
         write(_ct!(
             newline ~ `# TODO: OUTDATED; delete these lines when no longer needed.` ~ newline
@@ -178,7 +196,6 @@ nothrow pure:
         ref const tlu.Declarations ud,
         ref const tlg.Declarations gd,
     ) {
-        import std.range.primitives: empty;
         import sumtype;
         import utils: unreachable;
 

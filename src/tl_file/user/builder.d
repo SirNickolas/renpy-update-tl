@@ -33,7 +33,7 @@ private TranslationState _classifyBlock(string oldText, string newText) {
     auto s = newText.byCodeUnit().stripLeft!isWhite();
     if (s.source == oldText)
         return TranslationState.identical;
-    auto t = s.find!(among!('"', '\''));
+    auto t = s.find('"');
     if (t.length >= 2 && t[0] == t[1]) {
         auto old = oldText.byCodeUnit();
         if (old.startsWith(s[0 .. $ - (t.length - 1)]) && old.endsWith(t[1 .. $]))
@@ -64,17 +64,23 @@ Block makeDialogueBlock(
     string summary,
     string labelAndHash,
     string contents0,
+    string oldVoice,
     string oldText,
     string contents1,
+    string newVoice,
+    string contents2,
 ) {
-    contents1 = contents1._strip();
+    contents2 = contents2._strip();
     return Block(DialogueBlock(
         summary._strip(),
         labelAndHash,
         contents0._strip(),
+        oldVoice,
         oldText,
-        contents1,
-        _classifyBlock(oldText, contents1),
+        contents1._strip(),
+        newVoice,
+        contents2,
+        _classifyBlock(oldText, contents2),
     ));
 }
 

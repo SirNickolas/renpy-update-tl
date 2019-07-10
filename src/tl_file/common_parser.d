@@ -62,3 +62,9 @@ package S extractDialogueOldText(S: const(char)[ ] = const(char)[ ])(S line) @tr
 package S extractPlainStringOldText(S: const(char)[ ] = const(char)[ ])(S line) @trusted {
     return cast(S)_extractPlainStringOldText(line);
 }
+
+package bool isDialogueVoice(const(char)[ ] line) {
+    // ^voice\s*"
+    auto s = line.byCodeUnit();
+    return s.skipOver("voice".byCodeUnit()) && s.stripLeft!isWhite().startsWith('"');
+}
